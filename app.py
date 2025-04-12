@@ -65,9 +65,7 @@ if hesaplama_tipi == "Deprem Teminatı (PD & BI)":
         st.markdown(f"**Toplam Sigorta Bedeli (TL):** {toplam_bedel:,.2f}")
         st.success(f"📈 Minimum Deprem Primi: {prim:,.2f} TL")
 
-    # Bu ikinci hesapla butonunu pasifleştiriyoruz (gizli veya yorum)
-    # if st.button("Hesapla"):
-    #     pass
+    
 
 elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
     st.subheader("🧱 CAR & EAR Primi Hesaplayıcı")
