@@ -39,7 +39,7 @@ if hesaplama_tipi == "Deprem Teminatı (PD & BI)":
     if para_birimi != "TRY":
         kur_karsilik = st.number_input(f"1 {para_birimi} = ... TL", min_value=0.1, step=0.1, value=30.0)
 
-    damage = st.number_input("PD - Fiziki Hasar Bedeli", min_value=0, step=1000)
+    damage = st.number_input("PD - Maddi Bedel", min_value=0, step=1000)
     bi = st.number_input("BI - Kar Kaybı Bedeli", min_value=0, step=1000)
     ymm = st.number_input("Yangın Mali Mesuliyet Bedeli (YMM)", min_value=0, step=1000)
     enkaz = st.number_input("Enkaz Kaldırma Bedeli", min_value=0, step=1000)
@@ -49,6 +49,7 @@ if hesaplama_tipi == "Deprem Teminatı (PD & BI)":
     koasurans = st.selectbox("Koasürans Oranı", list(koasurans_indirimi.keys()))
     muafiyet = st.selectbox("Muafiyet Oranı (%)", list(muafiyet_indirimi.keys()))
 
+    # Bu hesapla butonu aktif kalacak
     if st.button("Hesapla", key="deprem"):
         oran = tarife_oranlari[bina_tipi][deprem_bolgesi - 1] / 1000
         koasurans_ind = koasurans_indirimi[koasurans]
@@ -63,6 +64,10 @@ if hesaplama_tipi == "Deprem Teminatı (PD & BI)":
         st.markdown(f"**Uygulanan Oran:** %{nihai_oran*100:.4f}")
         st.markdown(f"**Toplam Sigorta Bedeli (TL):** {toplam_bedel:,.2f}")
         st.success(f"📈 Minimum Deprem Primi: {prim:,.2f} TL")
+
+    # Bu ikinci hesapla butonunu pasifleştiriyoruz (gizli veya yorum)
+    # if st.button("Hesapla"):
+    #     pass
 
 elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
     st.subheader("🧱 CAR & EAR Primi Hesaplayıcı")
