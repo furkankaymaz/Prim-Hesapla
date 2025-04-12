@@ -16,6 +16,13 @@ muafiyet_indirimi = {
     2: 0.00, 3: 0.06, 4: 0.13, 5: 0.19, 10: 0.35
 }
 
+sure_carpani_tablosu = {
+    6: 0.70, 7: 0.75, 8: 0.80, 9: 0.85, 10: 0.90, 11: 0.95, 12: 1.00,
+    13: 1.05, 14: 1.10, 15: 1.15, 16: 1.20, 17: 1.25, 18: 1.30, 19: 1.35, 20: 1.40,
+    21: 1.45, 22: 1.50, 23: 1.55, 24: 1.60, 25: 1.65, 26: 1.70, 27: 1.74, 28: 1.78,
+    29: 1.82, 30: 1.86, 31: 1.90, 32: 1.94, 33: 1.98, 34: 2.02, 35: 2.06, 36: 2.10
+}
+
 st.set_page_config(page_title="TarifeX", layout="centered")
 st.markdown("""
     <style>
@@ -106,11 +113,11 @@ elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
 
         def get_sure_carpani(sure):
             if sure <= 6:
-                return 0.80
-            elif sure >= 36:
-                return 0.80 + 0.01 * (36 - 6) + (sure - 36) * 0.03
+                return sure_carpani_tablosu[6]
+            elif sure in sure_carpani_tablosu:
+                return sure_carpani_tablosu[sure]
             else:
-                return 0.80 + 0.01 * (sure - 6)
+                return sure_carpani_tablosu[36] + (sure - 36) * 0.03
 
         def hesapla_car(bedel):
             tl_bedel = bedel * kur_karsilik
