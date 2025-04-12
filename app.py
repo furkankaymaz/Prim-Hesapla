@@ -95,7 +95,12 @@ elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
     cpm_bedel = st.number_input("🛠️ CPM Bedeli", min_value=0, step=1000000)
     cpe_bedel = st.number_input("⚙️ CPE Bedeli", min_value=0, step=1000000)
 
-    if st.button("Hesapla", key="carcalc"):
+    car_tarife_oranlari = {
+    "A": [1.56, 1.31, 1.19, 0.98, 0.69, 0.54, 0.38],
+    "B": [3.06, 2.79, 1.88, 1.00, 0.79, 0.63, 0.54]
+}
+
+if st.button("Hesapla", key="carcalc"):
         koasurans_ind = koasurans_indirimi[koasurans]
         muafiyet_ind = muafiyet_indirimi[muafiyet]
 
