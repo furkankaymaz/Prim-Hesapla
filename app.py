@@ -49,7 +49,6 @@ if hesaplama_tipi == "Deprem Teminatı (PD & BI)":
     koasurans = st.selectbox("Koasürans Oranı", list(koasurans_indirimi.keys()))
     muafiyet = st.selectbox("Muafiyet Oranı (%)", list(muafiyet_indirimi.keys()))
 
-    # Bu hesapla butonu aktif kalacak
     if st.button("Hesapla", key="deprem"):
         oran = tarife_oranlari[bina_tipi][deprem_bolgesi - 1] / 1000
         koasurans_ind = koasurans_indirimi[koasurans]
@@ -64,8 +63,6 @@ if hesaplama_tipi == "Deprem Teminatı (PD & BI)":
         st.markdown(f"**Uygulanan Oran:** %{nihai_oran*100:.4f}")
         st.markdown(f"**Toplam Sigorta Bedeli (TL):** {toplam_bedel:,.2f}")
         st.success(f"📈 Minimum Deprem Primi: {prim:,.2f} TL")
-
-    
 
 elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
     st.subheader("🧱 CAR & EAR Primi Hesaplayıcı")
@@ -99,11 +96,11 @@ elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
     cpe_bedel = st.number_input("⚙️ CPE Bedeli", min_value=0, step=1000000)
 
     car_tarife_oranlari = {
-    "A": [1.56, 1.31, 1.19, 0.98, 0.69, 0.54, 0.38],
-    "B": [3.06, 2.79, 1.88, 1.00, 0.79, 0.63, 0.54]
-}
+        "A": [1.56, 1.31, 1.19, 0.98, 0.69, 0.54, 0.38],
+        "B": [3.06, 2.79, 1.88, 1.00, 0.79, 0.63, 0.54]
+    }
 
-if st.button("Hesapla", key="carcalc"):
+    if st.button("Hesapla", key="carcalc"):
         koasurans_ind = koasurans_indirimi[koasurans]
         muafiyet_ind = muafiyet_indirimi[muafiyet]
 
