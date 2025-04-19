@@ -87,4 +87,17 @@ if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
             st.error("Döviz kurları çekilemedi. Lütfen daha sonra tekrar deneyiniz.")
 
 elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
+    with st.expander("💱 Merkez Bankası Güncel Döviz Satış Kuru"):
+        try:
+            response = requests.get("https://api.exchangerate.host/latest?base=TRY")
+            data = response.json()
+            usd_try = 1 / data['rates']['USD']
+            eur_try = 1 / data['rates']['EUR']
+
+            st.metric(label="USD / TRY Satış Kuru", value=f"{usd_try:.2f} TL")
+            st.metric(label="EUR / TRY Satış Kuru", value=f"{eur_try:.2f} TL")
+
+        except Exception as e:
+            st.error("Döviz kurları çekilemedi. Lütfen daha sonra tekrar deneyiniz.")
+
     # mevcut kod değişmedi
