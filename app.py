@@ -76,9 +76,9 @@ elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
     st.markdown("Bu bölüm inşaat ve montaj işleri için teknik prim hesaplamasına yöneliktir.")
 
     risk_sinifi = st.selectbox("Risk Sınıfı", ["A", "B"])
-    deprem_bolgesi = st.selectbox("Deprem Risk Bölgesi", list(range(1, 8)))
-    baslangic_tarihi = st.date_input("Başlangıç Tarihi")
-    bitis_tarihi = st.date_input("Bitiş Tarihi")
+    deprem_bolgesi = st.selectbox("Deprem Risk Grubu", list(range(1, 8)))
+    baslangic_tarihi = st.date_input("Poliçe Başlangıç Tarihi")
+    bitis_tarihi = st.date_input("Poliçe Bitiş Tarihi")
 
     def hesapla_sure_ay(bas, bit):
         ay = (bit.year - bas.year) * 12 + (bit.month - bas.month)
@@ -89,7 +89,7 @@ elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
     sigorta_suresi = hesapla_sure_ay(baslangic_tarihi, bitis_tarihi)
     st.markdown(f"📅 Süre: {sigorta_suresi} ay")
 
-    koasurans = st.selectbox("Koasürans Oranı", list(koasurans_indirimi.keys()), key="car")
+    koasurans = st.selectbox("Müşterek Sigorta (Koasürans Oranı)", list(koasurans_indirimi.keys()), key="car")
     muafiyet = st.selectbox("Muafiyet Oranı (%)", list(muafiyet_indirimi.keys()), key="carmuaf")
     kur = st.selectbox("Para Birimi", ["TRY", "USD", "EUR"], key="carkur")
     kur_karsilik = 1.0
@@ -98,9 +98,9 @@ elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
 
     st.markdown("---")
     st.markdown("**Teminat Bedelleri**")
-    car_bedel = st.number_input("🏗️ CAR Bedeli", min_value=0, step=1000000)
-    cpm_bedel = st.number_input("🛠️ CPM Bedeli", min_value=0, step=1000000)
-    cpe_bedel = st.number_input("⚙️ CPE Bedeli", min_value=0, step=1000000)
+    car_bedel = st.number_input("🏗️ Proje Bedeli (İnşaat - Montaj Bedeli)", min_value=0, step=1000000)
+    cpm_bedel = st.number_input("🛠️ İnşaat Makineleri (CPM)", min_value=0, step=1000000)
+    cpe_bedel = st.number_input("⚙️ Şantiye Tesisleri (CPE)", min_value=0, step=1000000)
 
     car_tarife_oranlari = {
         "A": [1.56, 1.31, 1.19, 0.98, 0.69, 0.54, 0.38],
