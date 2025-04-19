@@ -38,6 +38,7 @@ st.markdown("""
 hesaplama_tipi = st.radio("Hesaplama Türünü Seçin", ["Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)", "İnşaat & Montaj (CAR & EAR)"])
 
 if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
+    
     st.subheader("🌊 Deprem Primi Hesaplayıcı")
     bina_tipi = st.selectbox("Yapı Tarzı", ["Betonarme", "Diğer"])
     deprem_bolgesi = st.selectbox("Deprem Risk Grubu (1=En Yüksek Risk)", list(range(1, 8)))
@@ -70,6 +71,20 @@ if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
         st.markdown(f"**Uygulanan Oran:** %{nihai_oran*100:.4f}")
         st.markdown(f"**Toplam Sigorta Bedeli (TL):** {toplam_bedel:,.2f}")
         st.success(f"📈 Minimum Deprem Primi: {prim:,.2f} TL")
+
+    with st.expander("💱 Merkez Bankası Güncel Döviz Satış Kuru"):
+    import requests
+    try:
+        response = requests.get("https://api.exchangerate.host/latest?base=TRY")
+        data = response.json()
+        usd_try = 1 / data['rates']['USD']
+        eur_try = 1 / data['rates']['EUR']
+
+        st.metric(label="USD / TRY Satış Kuru", value=f"{usd_try:.2f} TL")
+        st.metric(label="EUR / TRY Satış Kuru", value=f"{eur_try:.2f} TL")
+
+    except Exception as e:
+        st.error("Döviz kurları çekilemedi. Lütfen daha sonra tekrar deneyiniz.")
 
 elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
     st.subheader("🧱 CAR & EAR Primi Hesaplayıcı")
