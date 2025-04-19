@@ -2,8 +2,8 @@ import streamlit as st
 
 # Tarife oran tablosu (Deprem Bölgesi x Bina Tipi)
 tarife_oranlari = {
-    "Betonarme": [2.50, 2.22, 1.89, 1.77, 1.33, 0.94, 0.64],
-    "Diğer": [4.40, 3.77, 3.30, 3.09, 2.48, 1.65, 0.97]
+    "Betonarme": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75],
+    "Diğer": [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06]
 }
 
 koasurans_indirimi = {
