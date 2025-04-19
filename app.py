@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+from datetime import datetime
 
 # Tarife oran tablosu (Deprem Bölgesi x Bina Tipi)
 tarife_oranlari = {
@@ -39,6 +40,22 @@ st.markdown("""
 
 hesaplama_tipi = st.radio("Hesaplama Türünü Seçin", ["Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)", "İnşaat & Montaj (CAR & EAR)"])
 
+def doviz_kuru_goster():
+    with st.expander("💱 Merkez Bankası Güncel Döviz Satış Kuru"):
+        try:
+            response = requests.get("https://api.exchangerate.host/latest?base=TRY")
+            data = response.json()
+            usd_try = 1 / data['rates']['USD']
+            eur_try = 1 / data['rates']['EUR']
+            tarih = data['date']
+
+            st.metric(label="USD / TRY Satış Kuru", value=f"{usd_try:.2f} TL")
+            st.metric(label="EUR / TRY Satış Kuru", value=f"{eur_try:.2f} TL")
+            st.caption(f"Son Güncelleme: {tarih}")
+
+        except Exception as e:
+            st.error("Döviz kurları çekilemedi. Lütfen daha sonra tekrar deneyiniz.")
+
 if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     st.subheader("🌊 Deprem Primi Hesaplayıcı")
     bina_tipi = st.selectbox("Yapı Tarzı", ["Betonarme", "Diğer"])
@@ -47,6 +64,8 @@ if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     kur_karsilik = 1.0
     if para_birimi != "TRY":
         kur_karsilik = st.number_input(f"1 {para_birimi} = ... TL", min_value=0.1, step=0.1, value=30.0)
+
+    doviz_kuru_goster()
 
     damage = st.number_input("Yangın Sigorta Bedeli (PD)", min_value=0, step=1000)
     bi = st.number_input("Kar Kaybı Bedeli (BI)", min_value=0, step=1000)
@@ -73,31 +92,7 @@ if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
         st.markdown(f"**Toplam Sigorta Bedeli (TL):** {toplam_bedel:,.2f}")
         st.success(f"📈 Minimum Deprem Primi: {prim:,.2f} TL")
 
-    with st.expander("💱 Merkez Bankası Güncel Döviz Satış Kuru"):
-        try:
-            response = requests.get("https://api.exchangerate.host/latest?base=TRY")
-            data = response.json()
-            usd_try = 1 / data['rates']['USD']
-            eur_try = 1 / data['rates']['EUR']
-
-            st.metric(label="USD / TRY Satış Kuru", value=f"{usd_try:.2f} TL")
-            st.metric(label="EUR / TRY Satış Kuru", value=f"{eur_try:.2f} TL")
-
-        except Exception as e:
-            st.error("Döviz kurları çekilemedi. Lütfen daha sonra tekrar deneyiniz.")
-
 elif hesaplama_tipi == "İnşaat & Montaj (CAR & EAR)":
-    with st.expander("💱 Merkez Bankası Güncel Döviz Satış Kuru"):
-        try:
-            response = requests.get("https://api.exchangerate.host/latest?base=TRY")
-            data = response.json()
-            usd_try = 1 / data['rates']['USD']
-            eur_try = 1 / data['rates']['EUR']
-
-            st.metric(label="USD / TRY Satış Kuru", value=f"{usd_try:.2f} TL")
-            st.metric(label="EUR / TRY Satış Kuru", value=f"{eur_try:.2f} TL")
-
-        except Exception as e:
-            st.error("Döviz kurları çekilemedi. Lütfen daha sonra tekrar deneyiniz.")
+    doviz_kuru_goster()
 
     # mevcut kod değişmedi
