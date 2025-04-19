@@ -32,22 +32,22 @@ st.markdown("""
     p { font-size: 18px; }
     </style>
     <h1 style='text-align: center; color: #1F618D;'>TarifeX</h1>
-    <p style='text-align: center;'>Akıllı Sigorta Prim Hesaplama Uygulaması</p>
+    <p style='text-align: center;'>Akıllı Sigorta Prim Hesaplama Uygulaması</p><p style='text-align: center; font-size: 16px; color: #7f8c8d;'>Deprem ve Yanardağ Püskürmesi Teminatı için Uygulanacak Güncel Tarife</p>
     <p style='text-align: center; font-size: 16px; color: #7f8c8d;'>Founder: <b>Ubeydullah Ayvaz</b> & <b>Furkan Kaymaz</b></p>
 """, unsafe_allow_html=True)
-hesaplama_tipi = st.radio("Hesaplama Türünü Seçin", ["Deprem Teminatı (PD & BI)", "İnşaat & Montaj (CAR & EAR)"])
+hesaplama_tipi = st.radio("Hesaplama Türünü Seçin", ["Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)", "İnşaat & Montaj (CAR & EAR)"])
 
-if hesaplama_tipi == "Deprem Teminatı (PD & BI)":
+if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     st.subheader("🌊 Deprem Primi Hesaplayıcı")
-    bina_tipi = st.selectbox("Bina Tipi", ["Betonarme", "Diğer"])
-    deprem_bolgesi = st.selectbox("Deprem Risk Bölgesi (1=En Yüksek Risk)", list(range(1, 8)))
+    bina_tipi = st.selectbox("Yapı Tarzı", ["Betonarme", "Diğer"])
+    deprem_bolgesi = st.selectbox("Deprem Risk Grubu (1=En Yüksek Risk)", list(range(1, 8)))
     para_birimi = st.selectbox("Para Birimi", ["TRY", "USD", "EUR"])
     kur_karsilik = 1.0
     if para_birimi != "TRY":
         kur_karsilik = st.number_input(f"1 {para_birimi} = ... TL", min_value=0.1, step=0.1, value=30.0)
 
-    damage = st.number_input("PD - Maddi Bedel", min_value=0, step=1000)
-    bi = st.number_input("BI - Kar Kaybı Bedeli", min_value=0, step=1000)
+    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min_value=0, step=1000)
+    bi = st.number_input("Kar Kaybı Bedeli (BI)", min_value=0, step=1000)
     ymm = st.number_input("Yangın Mali Mesuliyet Bedeli (YMM)", min_value=0, step=1000)
     enkaz = st.number_input("Enkaz Kaldırma Bedeli", min_value=0, step=1000)
 
