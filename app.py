@@ -8,11 +8,11 @@ from datetime import datetime
 # ================================================================
 @st.cache_data(ttl=60 * 60)  # 1 saatte bir yenile
 def fetch_fx(currency: str):
-    """TCMB \u2192 exchangerate.host sıralamasıyla kuru getirir.
+    """TCMB → exchangerate.host sıralamasıyla kuru getirir.
     Dönen tuple: (rate, source, date_iso) veya (None, None, None)
     """
 
-    # --- 1) TCMB GÜNLÜK SATIŞ KURU -----------------------------------------
+    # --- 1) TCMB -----------------------------------------------------------
     try:
         tcmb_url = "https://www.tcmb.gov.tr/kurlar/today.xml"
         r = requests.get(tcmb_url, timeout=4)
@@ -20,38 +20,29 @@ def fetch_fx(currency: str):
         root = ET.fromstring(r.content)
         for cur in root.findall("Currency"):
             if cur.attrib.get("CurrencyCode") == currency:
-                text = (
-                    cur.findtext("BanknoteSelling")
-                    or cur.findtext("ForexSelling")
-                ).replace(",", ".")
+                text = (cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")).replace(",", ".")
                 rate = float(text)
-                # tcmb XML'inde tarih gg.aa.yyyy formatında
-                date_iso = datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime(
-                    "%Y-%m-%d"
-                )
+                date_iso = datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime("%Y-%m-%d")
                 return rate, "TCMB", date_iso
     except Exception:
-        pass  # TCMB erişilemezse yedek kaynağa geç
+        pass
 
-    # --- 2) exchangerate.host -------------------------------------------------
+    # --- 2) exchangerate.host --------------------------------------------
     try:
         url = f"https://api.exchangerate.host/latest?base={currency}&symbols=TRY"
         r = requests.get(url, timeout=4)
         if r.ok and r.json().get("success"):
             rate = r.json()["rates"]["TRY"]
-            date_iso = r.json()["date"]  # yyyy-mm-dd
+            date_iso = r.json()["date"]
             return rate, "exchangerate.host", date_iso
     except Exception:
         pass
 
-    # --- 3) Her iki kaynak da başarısız -------------------------------------
     return None, None, None
 
 
 def fx_input(para_birimi: str, key_prefix: str = "fx") -> float:
-    """Para birimi TRY dışındaysa TCMB kurunu otomatik getirir.
-    Kullanıcı isterse manuel günceller.
-    """
+    """TRY dışındaki para birimleri için otomatik kur + manuel güncelle seçeneği."""
     if para_birimi == "TRY":
         return 1.0
 
@@ -59,27 +50,21 @@ def fx_input(para_birimi: str, key_prefix: str = "fx") -> float:
     src_key = f"{key_prefix}_{para_birimi}_src"
     dt_key = f"{key_prefix}_{para_birimi}_dt"
 
-    # --- ilk kez seçildiyse kuru çek --------------------------------------------------
     if rate_key not in st.session_state:
         rate, src, dt = fetch_fx(para_birimi)
         if rate is not None:
             st.session_state.update({rate_key: rate, src_key: src, dt_key: dt})
         else:
-            # tamamen başarısızsa kullanıcıya manuel alan aç
             st.session_state.update({rate_key: 0.0, src_key: "MANUEL", dt_key: "-"})
 
-    # --- Bilgi bandı ------------------------------------------------------------------
     if st.session_state[src_key] == "MANUEL":
-        st.warning(
-            "Otomatik kur alınamadı. Lütfen güncel kuru girin.", icon="⚠️"
-        )
+        st.warning("Otomatik kur alınamadı. Lütfen güncel kuru girin.", icon="⚠️")
     else:
         st.info(
             f"1 {para_birimi} = {st.session_state[rate_key]:,.4f} TL "
             f"({st.session_state[src_key]}, {st.session_state[dt_key]})"
         )
 
-    # --- Manuel güncelleme kutusu -----------------------------------------------------
     yeni_kur = st.number_input(
         "Mevcut kuru manuel güncelleyebilirsiniz",
         value=float(st.session_state[rate_key]),
@@ -92,12 +77,9 @@ def fx_input(para_birimi: str, key_prefix: str = "fx") -> float:
     return yeni_kur
 
 # ================================================================
-# TARİFE SABİT TABLOLARI
+# SABİT TABLOLAR
 # ================================================================
 
-# (bundan sonrası değişmedi)
-
-# Tarife oran tablosu (Deprem Bölgesi x Bina Tipi)
 tarife_oranlari = {
     "Betonarme": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75],
     "Diğer": [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06],
@@ -120,41 +102,19 @@ koasurans_indirimi = {
 muafiyet_indirimi = {2: 0.00, 3: 0.06, 4: 0.13, 5: 0.19, 10: 0.35}
 
 sure_carpani_tablosu = {
-    6: 0.70,
-    7: 0.75,
-    8: 0.80,
-    9: 0.85,
-    10: 0.90,
-    11: 0.95,
-    12: 1.00,
-    13: 1.05,
-    14: 1.10,
-    15: 1.15,
-    16: 1.20,
-    17: 1.25,
-    18: 1.30,
-    19: 1.35,
-    20: 1.40,
-    21: 1.45,
-    22: 1.50,
-    23: 1.55,
-    24: 1.60,
-    25: 1.65,
-    26: 1.70,
-    27: 1.74,
-    28: 1.78,
-    29: 1.82,
-    30: 1.86,
-    31: 1.90,
-    32: 1.94,
-    33: 1.98,
-    34: 2.02,
-    35: 2.06,
-    36: 2.10,
+    6: 0.70, 7: 0.75, 8: 0.80, 9: 0.85, 10: 0.90, 11: 0.95, 12: 1.00,
+    13: 1.05, 14: 1.10, 15: 1.15, 16: 1.20, 17: 1.25, 18: 1.30, 19: 1.35, 20: 1.40,
+    21: 1.45, 22: 1.50, 23: 1.55, 24: 1.60, 25: 1.65, 26: 1.70, 27: 1.74, 28: 1.78,
+    29: 1.82, 30: 1.86, 31: 1.90, 32: 1.94, 33: 1.98, 34: 2.02, 35: 2.06, 36: 2.10,
+}
+
+car_tarife_oranlari = {
+    "A": [1.56, 1.31, 1.19, 0.98, 0.69, 0.54, 0.38],
+    "B": [3.06, 2.79, 1.88, 1.00, 0.79, 0.63, 0.54],
 }
 
 # ================================================================
-# STREAMLIT UI  – (ALT KISIM KODLAR DEĞİŞMEDİ)
+# STREAMLIT UI
 # ================================================================
 
 st.set_page_config(page_title="TarifeX", layout="centered")
@@ -175,4 +135,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ... (geri kalan hesaplama blokları aynen korunmuştur)
+hesaplama_tipi = st.radio(
+    "Hesaplama Türünü Seçin",
+    [
+        "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)",
+        "İnşaat & Montaj (CAR & EAR)",
+    ],
+)
+
+# ---------------------------------------------------------------
+# 1) YANGIN – TİCARİ/SINAİ
+# ---------------------------------------------------------------
+if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
+    st.subheader("🌊 Deprem Primi Hesaplayıcı")
+
+    bina_tipi = st.selectbox("Yapı Tarzı", ["Betonarme", "Diğer"])
+    deprem_bolgesi = st.selectbox("Deprem Risk Grubu (1=En Yüksek Risk)", list(range(1, 8)))
+    para_birimi = st.selectbox("Para Birimi", ["TRY", "USD", "EUR"])
+    kur_karsilik = fx_input(para_birimi, key_prefix="yangin")
+
+    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min
