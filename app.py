@@ -240,8 +240,8 @@ st.markdown(f'<h1 class="main-title">🏷️ {tr("title")}</h1>', unsafe_allow_h
 st.markdown(f'<h3 class="subtitle">{tr("subtitle")}</h3>', unsafe_allow_html=True)
 st.markdown('<p class="founders">Founders: Ubeydullah Ayvaz & Furkan Kaymaz</p>', unsafe_allow_html=True)
 
-# New image provided by the user
-st.image("attachment://TarifeX_Smart_Insurance_Premium_Calculator.jpg", caption=tr("title"))
+# Using a publicly accessible URL for a similar image since the original file path is not accessible
+st.image("https://img.freepik.com/free-vector/online-insurance-concept-illustration_114360-6987.jpg", caption=tr("title"))
 
 # Main Content
 st.markdown('<h2 class="section-header">📌 ' + ("Hesaplama Yap" if lang == "TR" else "Perform Calculation") + '</h2>', unsafe_allow_html=True)
@@ -312,4 +312,4 @@ else:
         st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {premium:,.2f} TRY</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
 
-# Footer removed as per request
+# Footer removed as per previous request
