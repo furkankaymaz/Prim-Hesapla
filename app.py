@@ -1,17 +1,16 @@
 import streamlit as st
-import requests
-import xml.etree.ElementTree as ET
+import requests, xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
 # ------------------------------------------------------------
-# Streamlit page config – MUST be first
+# STREAMLIT CONFIG (must be first)
 # ------------------------------------------------------------
 st.set_page_config(page_title="TarifeX", layout="centered")
 
-###############################################################
-# 0) Language selector (TR / EN)
-###############################################################
-lang = st.sidebar.radio("Dil / Language", ["TR", "EN"], index=0)
+# ------------------------------------------------------------
+# 0) LANGUAGE SELECTOR (TR / EN)
+# ------------------------------------------------------------
+lang = st.sidebar.radio("Dil / Language", ["TR", "EN"], index=0)
 T = {
     "title":       {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplayıcı", "EN": "TarifeX – Smart Insurance Premium Calculator"},
     "subtitle":    {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı", "EN": "Earthquake & Volcanic Eruption Cover"},
@@ -31,7 +30,7 @@ T = {
     "deduct": {"TR": "Muafiyet Oranı (%)", "EN": "Deductible (%)"},
     "btn_calc": {"TR": "Hesapla", "EN": "Calculate"},
     "min_premium": {"TR": "Minimum Deprem Primi", "EN": "Minimum EQ Premium"},
-    "applied_rate": {"TR": "Uygulanan Oran %", "EN": "Applied Rate %"},
+    "applied_rate": {"TR": "Uygulanan Oran %", "EN": "Applied Rate %"},
     # CAR / EAR
     "risk_class": {"TR": "Risk Sınıfı", "EN": "Risk Class"},
     "start": {"TR": "Poliçe Başlangıcı", "EN": "Policy Start"},
@@ -46,73 +45,61 @@ T = {
     "total_premium": {"TR": "Toplam Minimum Prim", "EN": "Total Minimum Premium"},
 }
 
-def tr(k):
-    return T[k][lang]
+def tr(key: str) -> str:
+    return T[key][lang]
 
-###############################################################
+# ------------------------------------------------------------
 # 1) TCMB FX MODULE
-###############################################################
+# ------------------------------------------------------------
 @st.cache_data(ttl=3600)
-def get_tcmb_rate(ccy):
+def get_tcmb_rate(ccy: str):
     try:
-        r=requests.get("https://www.tcmb.gov.tr/kurlar/today.xml",timeout=4)
+        r = requests.get("https://www.tcmb.gov.tr/kurlar/today.xml", timeout=4)
         r.raise_for_status()
-        root=ET.fromstring(r.content)
+        root = ET.fromstring(r.content)
         for cur in root.findall("Currency"):
-            if cur.attrib.get("CurrencyCode")==ccy:
-                txt=cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")
-                return float(txt.replace(",",".")), datetime.strptime(root.attrib["Date"],"%d.%m.%Y").strftime("%Y-%m-%d")
+            if cur.attrib.get("CurrencyCode") == ccy:
+                txt = cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")
+                return float(txt.replace(",", ".")), datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime("%Y-%m-%d")
     except Exception:
         pass
-    today=datetime.today()
-    for i in range(1,8):
-        d=today-timedelta(days=i)
-        url=f"https://www.tcmb.gov.tr/kurlar/{d:%Y%m}/{d:%d%m%Y}.xml"
+    today = datetime.today()
+    for i in range(1, 8):
+        d = today - timedelta(days=i)
+        url = f"https://www.tcmb.gov.tr/kurlar/{d:%Y%m}/{d:%d%m%Y}.xml"
         try:
-            r=requests.get(url,timeout=4)
+            r = requests.get(url, timeout=4)
             if not r.ok:
                 continue
-            root=ET.fromstring(r.content)
+            root = ET.fromstring(r.content)
             for cur in root.findall("Currency"):
-                if cur.attrib.get("CurrencyCode")==ccy:
-                    txt=cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")
-                    return float(txt.replace(",",".")), d.strftime("%Y-%m-%d")
+                if cur.attrib.get("CurrencyCode") == ccy:
+                    txt = cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")
+                    return float(txt.replace(",", ".")), d.strftime("%Y-%m-%d")
         except Exception:
             continue
-    return None,None
+    return None, None
 
-def fx_input(ccy,key):
-    if ccy=="TRY":
+def fx_input(ccy: str, key_prefix: str) -> float:
+    if ccy == "TRY":
         return 1.0
-    r_key=f"{key}_{ccy}_rate"; s_key=f"{key}_{ccy}_src"; d_key=f"{key}_{ccy}_dt"
+    r_key = f"{key_prefix}_{ccy}_rate"; s_key = f"{key_prefix}_{ccy}_src"; d_key = f"{key_prefix}_{ccy}_dt"
     if r_key not in st.session_state:
-        rate,dt=get_tcmb_rate(ccy)
+        rate, dt = get_tcmb_rate(ccy)
         if rate is None:
-            st.session_state.update({r_key:0.0,s_key:"MANUEL",d_key:"-"})
+            st.session_state.update({r_key: 0.0, s_key: "MANUEL", d_key: "-"})
         else:
-            st.session_state.update({r_key:rate,s_key:"TCMB",d_key:dt})
-    st.info(f"1 {ccy} = {st.session_state[r_key]:,.4f} TL ({st.session_state[s_key]}, {st.session_state[d_key]})")
-    st.session_state[r_key]=st.number_input(tr("manual_fx"),value=float(st.session_state[r_key]),step=0.0001,format="%.4f",key=f"{key}_{ccy}_manual")
+            st.session_state.update({r_key: rate, s_key: "TCMB", d_key: dt})
+    st.info(f"1 {ccy} = {st.session_state[r_key]:,.4f} TL ({st.session_state[s_key]}, {st.session_state[d_key]})")
+    st.session_state[r_key] = st.number_input(tr("manual_fx"), value=float(st.session_state[r_key]), step=0.0001, format="%.4f", key=f"{key_prefix}_{ccy}_manual")
     return st.session_state[r_key]
 
-###############################################################
+# ------------------------------------------------------------
 # 2) CONSTANT TABLES
-###############################################################
+# ------------------------------------------------------------
 
-tarife_oranlari={"Betonarme":[3.13,2.63,2.38,1.94,1.38,1.06,0.75],"Diğer":[6.13,5.56,3.75,2.00,1.56,1.24,1.06]}
-koasurans_indirimi={"80/20":0.0,"75/25":0.0625,"70/30":0.125,"65/35":0.1875,"60/40":0.25,"55/45":0.3125,"50/50":0.375,"45/55":0.4375,"40/60":0.5,"30/70":0.125,"25/75":0.0625}
-muafiyet_indirimi={2:0.0,3:0.06,4:0.13,5:0.19,10:0.35}
-sure_carpani_tablosu={6:0.70,7:0.75,8:0.80,9:0.85,10:0.90,11:0.95,12:1.00,13:1.05,14:1.10,15:1.15,16:1.20,17:1.25,18:1.30,19:1.35,20:1.40,21:1.45,22:1.50,23:1.55,24:1.60,25:1.65,26:1.70,27:1.74,28:1.78,29:1.82,30:1.86,31:1.90,32:1.94,33:1.98,34:2.02,35:2.06,36:2.10}
-car_tarife_oranlari={
-    "A":[1.56,1.31,1.19,0.98,0.69,0.54,0.38],
-    "B":[3.06,2.79,1.88,1.00,0.79,0.63,0.54],
-}
-
-###############################################################
-# 3) HEADER
-###############################################################
-
-st.markdown(f"""
-<style>body{{background:#f9fbfc}}</style>
-<h1 style='text-align:center;color:#1F618D'>{tr('title')}</h1>
-<p style='text-align:center;font-size:16px;color:#7f
+tarife_oranlari = {"Betonarme": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75],
+                    "Diğer":     [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06]}
+koasurans_indirimi = {"80/20": 0.0, "75/25": 0.0625, "70/30": 0.125, "65/35": 0.1875, "60/40": 0.25, "55/45": 0.3125, "50/50": 0.375, "45/55": 0.4375, "40/60": 0.5, "30/70": 0.125, "25/75": 0.0625}
+muafiyet_indirimi = {2: 0.0, 3: 0.06, 4: 0.13, 5: 0.19, 10: 0.35}
+sure_carpani_tablosu = {6:0.70,7:0.75,8:0.80,9:0.85,10:0.90,11:0.95,12:1.00,13:1.05,14:1.10,15:1.15,16:1.20,17:1.25,18:1.30,19:1.35,20:1.40,21:1.45,22:1.50,23
