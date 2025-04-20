@@ -102,7 +102,7 @@ hesaplama_tipi = st.radio("Hesaplama Türünü Seçin", ["Yangın Sigortası - T
 if hesaplama_tipi.startswith("Yangın"):
     bina_tipi = st.selectbox("Yapı Tarzı", ["Betonarme", "Diğer"])
     deprem_bolgesi = st.selectbox("Deprem Risk Grubu (1=En Yüksek Risk)", list(range(1,8)))
-    para_birimi = st.selectbox("Para Birimi", ["TRY", "USD", "EUR"], key="ybim")
+    para_birimi = st.selectbox("Para Birimi", ["TRY", "USD", "EUR", "GBP"], key="ybim")
     kur = fx_input(para_birimi, "yangin")
     damage = st.number_input("Yangın Sigorta Bedeli (PD)", min_value=0, step=1000)
     bi     = st.number_input("Kar Kaybı Bedeli (BI)",  min_value=0, step=1000)
