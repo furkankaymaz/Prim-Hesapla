@@ -21,6 +21,12 @@ st.markdown("""
         font-size: 1.2em;
         color: #5DADE2;
         text-align: center;
+        margin-bottom: 0.5em;
+    }
+    .founders {
+        font-size: 1em;
+        color: #1A5276;
+        text-align: center;
         margin-bottom: 1em;
     }
     .section-header {
@@ -62,37 +68,55 @@ with st.container():
     lang = st.radio("🌐", ["TR", "EN"], index=0, horizontal=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+# Language dictionary with full English translation
 T = {
-    "title": {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplayıcı", "EN": "TarifeX – Smart Insurance Premium Calculator"},
-    "subtitle": {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı", "EN": "Earthquake & Volcanic Eruption Cover"},
-    "founder": {"TR": "Kurucu", "EN": "Founder"},
+    "title": {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplama Uygulaması", "EN": "TarifeX – Smart Insurance Premium Calculator"},
+    "subtitle": {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı için Uygulanacak Güncel Tarife", "EN": "Current Tariff for Earthquake and Volcanic Eruption Coverage"},
+    "fire_header": {"TR": "🔥 Yangın Sigortası Hesaplama", "EN": "🔥 Fire Insurance Calculation"},
+    "car_header": {"TR": "🏗️ İnşaat & Montaj Hesaplama", "EN": "🏗️ Construction & Erection Calculation"},
     "select_calc": {"TR": "Hesaplama Türünü Seçin", "EN": "Select Calculation Type"},
     "calc_fire": {"TR": "Yangın Sigortası - Ticari Sınai Rizikolar (PD & BI)", "EN": "Fire Insurance – Commercial / Industrial (PD & BI)"},
     "calc_car": {"TR": "İnşaat & Montaj (CAR & EAR)", "EN": "Construction & Erection (CAR & EAR)"},
     "building_type": {"TR": "Yapı Tarzı", "EN": "Construction Type"},
+    "building_type_help": {"TR": "Betonarme: Çelik veya betonarme taşıyıcı karkas bulunan yapılar. Diğer: Bu gruba girmeyen yapılar.", "EN": "Concrete: Structures with steel or reinforced concrete framework. Other: Structures not in this group."},
     "risk_group": {"TR": "Deprem Risk Grubu (1=En Yüksek Risk)", "EN": "Earthquake Risk Zone (1=Highest)"},
+    "risk_group_help": {"TR": "Deprem risk grupları, Doğal Afet Sigortaları Kurumu tarafından belirlenir. 1. Grup en yüksek risktir.", "EN": "Earthquake risk zones are determined by the Natural Disaster Insurance Institution. Zone 1 is the highest risk."},
     "currency": {"TR": "Para Birimi", "EN": "Currency"},
-    "manual_fx": {"TR": "Kuru manuel güncelleyebilirsiniz", "EN": "You can update the rate manually"},
+    "manual_fx": {"TR": "Kuru manuel güncelleyebilirsiniz", "EN": "You can manually update the exchange rate"},
     "pd": {"TR": "Yangın Sigorta Bedeli (PD)", "EN": "Property Damage Sum Insured (PD)"},
+    "pd_help": {"TR": "Bina ve muhteviyat için yangın sigorta bedeli. Betonarme binalar için birim metrekare fiyatı min. 18,600 TL, diğerleri için 12,600 TL.", "EN": "Fire insurance sum for building and contents. Min. unit square meter price for concrete buildings: 18,600 TL; others: 12,600 TL."},
     "bi": {"TR": "Kar Kaybı Bedeli (BI)", "EN": "Business Interruption Sum Insured (BI)"},
+    "bi_help": {"TR": "Deprem sonrası ticari faaliyetin durması sonucu ciro azalması ve maliyet artışından kaynaklanan brüt kâr kaybı.", "EN": "Gross profit loss due to reduced turnover and increased costs from business interruption after an earthquake."},
     "ymm": {"TR": "Yangın Mali Mesuliyet Bedeli (YMM)", "EN": "Third‑Party Liability Sum Insured"},
+    "ymm_help": {"TR": "Üçüncü şahıslara karşı mali sorumluluk teminatı bedeli.", "EN": "Sum insured for third-party liability coverage."},
     "debris": {"TR": "Enkaz Kaldırma Bedeli", "EN": "Debris Removal Sum Insured"},
+    "debris_help": {"TR": "Deprem sonrası enkaz kaldırma masrafları için teminat bedeli.", "EN": "Sum insured for debris removal costs after an earthquake."},
     "koas": {"TR": "Koasürans Oranı", "EN": "Coinsurance Share"},
+    "koas_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
     "deduct": {"TR": "Muafiyet Oranı (%)", "EN": "Deductible (%)"},
+    "deduct_help": {"TR": "Her hasarda bina sigorta bedeli üzerinden uygulanır. Min. %2, artırılabilir (max. %35 indirim).", "EN": "Applied per loss on the building sum insured. Min. 2%, can be increased (max. 35% discount)."},
     "btn_calc": {"TR": "Hesapla", "EN": "Calculate"},
-    "min_premium": {"TR": "Minimum Deprem Primi", "EN": "Minimum EQ Premium"},
+    "min_premium": {"TR": "Minimum Deprem Primi", "EN": "Minimum Earthquake Premium"},
     "applied_rate": {"TR": "Uygulanan Oran %", "EN": "Applied Rate %"},
     "risk_class": {"TR": "Risk Sınıfı", "EN": "Risk Class"},
+    "risk_class_help": {"TR": "A: Bina inşaatları, dekorasyon. B: Tünel, köprü, enerji santralleri gibi daha riskli projeler.", "EN": "A: Building construction, decoration. B: Tunnels, bridges, power plants, and other high-risk projects."},
     "start": {"TR": "Poliçe Başlangıcı", "EN": "Policy Start"},
     "end": {"TR": "Poliçe Bitişi", "EN": "Policy End"},
     "duration": {"TR": "Süre", "EN": "Duration"},
     "months": {"TR": "ay", "EN": "months"},
+    "duration_help": {"TR": "Sigorta süresi. 36 aydan uzun projelerde her ay için %3 eklenir.", "EN": "Policy duration. For projects over 36 months, 3% is added per month."},
     "coins": {"TR": "Koasürans", "EN": "Coinsurance"},
+    "coins_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
     "ded": {"TR": "Muafiyet (%)", "EN": "Deductible (%)"},
+    "ded_help": {"TR": "Her hasarda sigorta bedeli üzerinden uygulanır. Min. %2, artırılabilir (max. %35 indirim).", "EN": "Applied per loss on the sum insured. Min. 2%, can be increased (max. 35% discount)."},
     "project": {"TR": "Proje Bedeli (CAR)", "EN": "Project Sum Insured (CAR)"},
+    "project_help": {"TR": "Proje nihai değeri (gümrük, vergi, nakliye ve işçilik dahil). Min. sözleşme bedeli kadar olmalı.", "EN": "Final project value (including customs, taxes, transport, and labor). Must be at least the contract value."},
     "cpm": {"TR": "İnşaat Makineleri (CPM)", "EN": "Construction Machinery (CPM)"},
+    "cpm_help": {"TR": "İnşaat makineleri için teminat bedeli. Aynı riziko adresinde kullanılmalı.", "EN": "Sum insured for construction machinery. Must be used at the same risk address."},
     "cpe": {"TR": "Şantiye Tesisleri (CPE)", "EN": "Site Facilities (CPE)"},
+    "cpe_help": {"TR": "Şantiye tesisleri için teminat bedeli. Aynı riziko adresinde bulunmalı.", "EN": "Sum insured for site facilities. Must be at the same risk address."},
     "total_premium": {"TR": "Toplam Minimum Prim", "EN": "Total Minimum Premium"},
+    "limit_warning": {"TR": "⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Total sum insured exceeds the 850 million TRY limit. Premium calculation will be based on this limit."}
 }
 
 def tr(key: str) -> str:
@@ -163,8 +187,8 @@ sure_carpani_tablosu = {
     6: 0.70, 7: 0.75, 8: 0.80, 9: 0.85, 10: 0.90, 11: 0.95, 12: 1.00, 
     13: 1.05, 14: 1.10, 15: 1.15, 16: 1.20, 17: 1.25, 18: 1.30, 
     19: 1.35, 20: 1.40, 21: 1.45, 22: 1.50, 23: 1.55, 24: 1.60, 
-    25: 1.65, 26: 1.70, 27: 1.75, 28: 1.80, 29: 1.85, 30: 1.90, 
-    31: 1.95, 32: 2.00, 33: 2.05, 34: 2.10, 35: 2.15, 36: 2.20
+    25: 1.65, 26: 1.70, 27: 1.74, 28: 1.78, 29: 1.82, 30: 1.86, 
+    31: 1.90, 32: 1.94, 33: 1.98, 34: 2.02, 35: 2.06, 36: 2.10
 }
 
 # ------------------------------------------------------------
@@ -180,7 +204,7 @@ def calculate_duration_multiplier(months: int) -> float:
 def calculate_fire_premium(building_type, risk_group, currency, pd, bi, ymm, debris, koas, deduct, fx_rate):
     total_sum_insured = (pd + bi + ymm + debris) * fx_rate
     if total_sum_insured > 850_000_000:
-        st.warning("⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.")
+        st.warning(tr("limit_warning"))
         total_sum_insured = 850_000_000
     
     rate = tarife_oranlari[building_type][risk_group - 1]
@@ -195,7 +219,7 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, ymm, deb
 def calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, currency, koas, deduct, fx_rate):
     total_sum_insured = (project + cpm + cpe) * fx_rate
     if total_sum_insured > 850_000_000:
-        st.warning("⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.")
+        st.warning(tr("limit_warning"))
         total_sum_insured = 850_000_000
     
     base_rate = tarife_oranlari["Betonarme"][risk_class - 1]
@@ -212,98 +236,42 @@ def calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, cu
 # 4) STREAMLIT UI
 # ------------------------------------------------------------
 # Header with Image
-st.markdown('<h1 class="main-title">🏷️ TarifeX</h1>', unsafe_allow_html=True)
-st.markdown('<h3 class="subtitle">Deprem ve Yanardağ Püskürmesi Teminatı 🌋</h3>', unsafe_allow_html=True)
+st.markdown(f'<h1 class="main-title">🏷️ {tr("title")}</h1>', unsafe_allow_html=True)
+st.markdown(f'<h3 class="subtitle">{tr("subtitle")}</h3>', unsafe_allow_html=True)
+st.markdown('<p class="founders">Founders: Ubeydullah Ayvaz & Furkan Kaymaz</p>', unsafe_allow_html=True)
 
-# Placeholder for a header image (you can replace the URL with a relevant image)
-st.image("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80", caption="Sigorta Hesaplama Kolaylığı")
-
-# Project Summary
-with st.expander("📋 Proje Özeti"):
-    st.markdown("""
-    ### Proje Özeti (Tam Açıklamalı)
-    **🏷️ Proje Adı:** TarifeX - Akıllı Sigorta Prim Hesaplama Uygulaması
-
-    **🎯 Projenin Amacı:**
-    - Türkiye’deki zorunlu Deprem ve Yanardağ Püskürmesi Teminatı için,
-    - Ticari ve Sınai Rizikolar poliçeleri ile İnşaat & Montaj (CAR & EAR) poliçelerine ait minimum deprem primlerini doğru ve güncel tarifeye göre hesaplamak.
-    - Kullanıcıların hızlı ve teknik doğru prim tahmini yapabilmesini sağlamak.
-    - Acente ve brokerler için pratik danışmanlık ve fiyatlama aracı oluşturmak.
-
-    **🛠️ Kullanılan Teknolojiler:**
-    - Python 3.12+
-    - Streamlit (web tabanlı uygulama için)
-    - Requests (API bağlantısı için)
-    - XML parsing (TCMB verisi için)
-    - Canvas geliştirme ortamı
-
-    **🧩 Uygulamanın Ana Modülleri:**
-    1. **Yangın Sigortası - Ticari Sınai Rizikolar (PD & BI)**  
-       Kullanıcıdan: Yapı Tarzı, Deprem Risk Grubu, Para Birimi, Sigorta Bedelleri alınır.  
-       Güncel tarife oranlarına göre: Toplam Bedel, Koasürans indirimi, Muafiyet indirimi, Nihai prim hesaplanır.
-    2. **İnşaat & Montaj (CAR & EAR)**  
-       Kullanıcıdan: Risk sınıfı, Sigorta süresi, Teminat bedelleri, Koasürans ve Muafiyet oranları alınır.  
-       Süre çarpanı ve yapı bazlı tarife oranı kullanılarak: CAR primi, İnşaat Makineleri primi (CPM), Şantiye Tesisleri primi (CPE), Toplam prim hesaplanır.
-
-    **💱 Döviz Kuru Modülü:**
-    - İlk Kaynak: exchangerate.host
-    - Yedek Kaynak: TCMB today.xml
-    - USD/TRY ve EUR/TRY satış kurları çekiliyor.
-    - Güncelleme tarihi ve veri kaynağı (exchangerate veya TCMB) gösteriliyor.
-
-    **📈 Hesaplama Adımları:**
-    - Sigorta bedelleri para birimi çevrimi yapılarak TRY bazında hesaplanıyor.
-    - İlgili tarifeye göre oran seçiliyor.
-    - Koasürans ve Muafiyet indirimleri uygulanıyor.
-    - Nihai oran belirlenip toplam prim hesaplanıyor.
-
-    **⚙️ Teknik Detaylar:**
-    - Süre çarpanları 6-36 ay için sabit tabloyla alınır.
-    - 36 ay üstü projelerde her ay %3 artış uygulanır.
-    - Prim limitleri 850 milyon TRY eşik değerine göre ayarlanır.
-    - Kod tamamen modüler ve genişlemeye açıktır.
-
-    **🚀 Geliştirilebilecek Ekstra Özellikler:**
-    - Prim sonucunu PDF raporu olarak dışa aktarabilme
-    - Hesaplama geçmişi saklama
-    - Çoklu dil desteği (İngilizce/Türkçe)
-    - Kullanıcı paneli (login/signup)
-    - Üçüncü şahıs teminat modülü eklemek
-    - Webhook ile acente CRM sistemlerine entegrasyon
-
-    **👤 Kurucu:** [Kurucu Bilgisi Eklenmedi]  
-    **📅 Son Güncelleme:** Nisan 2025
-    """)
+# Earthquake-related image
+st.image("https://images.unsplash.com/photo-1628525803731-2ca12c7a7e40?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80", caption=tr("title"))
 
 # Main Content
-st.markdown('<h2 class="section-header">📌 Hesaplama Yap</h2>', unsafe_allow_html=True)
-calc_type = st.selectbox(tr("select_calc"), [tr("calc_fire"), tr("calc_car")], help="Hesaplama türünü seçerek başlayın.")
+st.markdown('<h2 class="section-header">📌 ' + ("Hesaplama Yap" if lang == "TR" else "Perform Calculation") + '</h2>', unsafe_allow_html=True)
+calc_type = st.selectbox(tr("select_calc"), [tr("calc_fire"), tr("calc_car")], help="Hesaplama türünü seçerek başlayın." if lang == "TR" else "Start by selecting the calculation type.")
 
 if calc_type == tr("calc_fire"):
-    st.markdown('<h3 class="section-header">🔥 Yangın Sigortası Hesaplama</h3>', unsafe_allow_html=True)
+    st.markdown(f'<h3 class="section-header">{tr("fire_header")}</h3>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"])
-        risk_group = st.selectbox(tr("risk_group"), [1, 2, 3, 4, 5, 6, 7])
+        building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"], help=tr("building_type_help"))
+        risk_group = st.selectbox(tr("risk_group"), [1, 2, 3, 4, 5, 6, 7], help=tr("risk_group_help"))
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
     with col2:
         fx_rate = fx_input(currency, "fire")
     
-    st.markdown("### Sigorta Bedelleri")
+    st.markdown("### " + ("Sigorta Bedelleri" if lang == "TR" else "Sums Insured"))
     col3, col4 = st.columns(2)
     with col3:
-        pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0)
-        bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0)
+        pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
+        bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
     with col4:
-        ymm = st.number_input(tr("ymm"), min_value=0.0, value=0.0, step=1000.0)
-        debris = st.number_input(tr("debris"), min_value=0.0, value=0.0, step=1000.0)
+        ymm = st.number_input(tr("ymm"), min_value=0.0, value=0.0, step=1000.0, help=tr("ymm_help"))
+        debris = st.number_input(tr("debris"), min_value=0.0, value=0.0, step=1000.0, help=tr("debris_help"))
     
-    st.markdown("### İndirim Oranları")
+    st.markdown("### " + ("İndirim Oranları" if lang == "TR" else "Discount Rates"))
     col5, col6 = st.columns(2)
     with col5:
-        koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()))
+        koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
     with col6:
-        deduct = st.selectbox(tr("deduct"), list(muafiyet_indirimi.keys()))
+        deduct = st.selectbox(tr("deduct"), list(muafiyet_indirimi.keys()), help=tr("deduct_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
         premium, applied_rate = calculate_fire_premium(building_type, risk_group, currency, pd, bi, ymm, debris, koas, deduct, fx_rate)
@@ -311,39 +279,39 @@ if calc_type == tr("calc_fire"):
         st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
 
 else:
-    st.markdown('<h3 class="section-header">🏗️ İnşaat & Montaj Hesaplama</h3>', unsafe_allow_html=True)
+    st.markdown(f'<h3 class="section-header">{tr("car_header")}</h3>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        risk_class = st.selectbox(tr("risk_class"), [1, 2, 3, 4, 5, 6, 7])
+        risk_class = st.selectbox(tr("risk_class"), [1, 2, 3, 4, 5, 6, 7], help=tr("risk_class_help"))
         start_date = st.date_input(tr("start"), value=datetime.today())
         end_date = st.date_input(tr("end"), value=datetime.today() + timedelta(days=365))
     with col2:
         duration_months = max(1, (end_date.year - start_date.year) * 12 + end_date.month - start_date.month)
-        st.write(f"⏳ {tr('duration')}: {duration_months} {tr('months')}")
+        st.write(f"⏳ {tr('duration')}: {duration_months} {tr('months')}", help=tr("duration_help"))
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate = fx_input(currency, "car")
     
-    st.markdown("### Sigorta Bedelleri")
+    st.markdown("### " + ("Sigorta Bedelleri" if lang == "TR" else "Sums Insured"))
     col3, col4, col5 = st.columns(3)
     with col3:
-        project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0)
+        project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0, help=tr("project_help"))
     with col4:
-        cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0)
+        cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpm_help"))
     with col5:
-        cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0)
+        cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpe_help"))
     
-    st.markdown("### İndirim Oranları")
+    st.markdown("### " + ("İndirim Oranları" if lang == "TR" else "Discount Rates"))
     col6, col7 = st.columns(2)
     with col6:
-        koas = st.selectbox(tr("coins"), list(koasurans_indirimi.keys()))
+        koas = st.selectbox(tr("coins"), list(koasurans_indirimi.keys()), help=tr("coins_help"))
     with col7:
-        deduct = st.selectbox(tr("ded"), list(muafiyet_indirimi.keys()))
+        deduct = st.selectbox(tr("ded"), list(muafiyet_indirimi.keys()), help=tr("ded_help"))
     
     if st.button(tr("btn_calc"), key="car_calc"):
         premium, applied_rate = calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, currency, koas, deduct, fx_rate)
         st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {premium:,.2f} TRY</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
 
-# Footer with an Image
+# Footer with a construction-related image
 st.markdown("---")
-st.image("https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80", caption="TarifeX ile Sigorta Hesaplama Artık Çok Kolay!")
+st.image("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80", caption=tr("title"))
