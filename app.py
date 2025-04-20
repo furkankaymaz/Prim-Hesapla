@@ -4,28 +4,25 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
 # ================================================================
-# DÖVİZ KURU YARDIMCI FONKSİYONLARI – TCMB ÖNCELİKLİ (hafta sonu / tatil)
+# DÖVİZ KURU YARDIMCI – TCMB ÖNCELİKLİ (hafta sonu / tatil)
 # ================================================================
 @st.cache_data(ttl=60 * 60)  # 1 saat cache
 def get_tcmb_rate(ccy: str):
-    """TCMB satış kuru döndürür.
-    1) today.xml (çalışma günü)
-    2) Bulunamazsa geriye doğru en fazla 7 gün giderek son iş gününü getirir.
-    Döner: (rate, date_iso) veya (None, None)"""
+    """Son TCMB satış kurunu getirir (today.xml veya geriye doğru 7 güne kadar)."""
 
-    # 1) today.xml dene
+    # 1) today.xml (iş günleri)
     try:
         r = requests.get("https://www.tcmb.gov.tr/kurlar/today.xml", timeout=4)
         r.raise_for_status()
         root = ET.fromstring(r.content)
         for cur in root.findall("Currency"):
             if cur.attrib.get("CurrencyCode") == ccy:
-                text = (cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling"))
+                text = cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")
                 rate = float(text.replace(",", "."))
                 date_iso = datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime("%Y-%m-%d")
                 return rate, date_iso
     except Exception:
-        pass  # hafta sonu veya erişim hatası
+        pass
 
     # 2) geriye doğru tarama (max 7 gün)
     today = datetime.today()
@@ -39,7 +36,7 @@ def get_tcmb_rate(ccy: str):
             root = ET.fromstring(r.content)
             for cur in root.findall("Currency"):
                 if cur.attrib.get("CurrencyCode") == ccy:
-                    text = (cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling"))
+                    text = cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")
                     rate = float(text.replace(",", "."))
                     date_iso = d.strftime("%Y-%m-%d")
                     return rate, date_iso
@@ -49,7 +46,7 @@ def get_tcmb_rate(ccy: str):
 
 
 def fx_input(ccy: str, key_prefix: str) -> float:
-    """TRY dışındaki para birimleri için TCMB satış kuru + manuel düzeltme"""
+    """TRY dışındaki para birimleri için TCMB kuru getir + manuel güncelle."""
     if ccy == "TRY":
         return 1.0
 
@@ -57,6 +54,7 @@ def fx_input(ccy: str, key_prefix: str) -> float:
     src_key = f"{key_prefix}_src"
     date_key = f"{key_prefix}_date"
 
+    # İlk kur çekimi
     if rate_key not in st.session_state:
         rate, date_iso = get_tcmb_rate(ccy)
         if rate is None:
@@ -81,7 +79,7 @@ def fx_input(ccy: str, key_prefix: str) -> float:
     return new_rate
 
 # ================================================================
-# TARİFE SABİT TABLOLARI
+# SABİT TABLOLAR
 # ================================================================
 
 tarife_oranlari = {
@@ -118,7 +116,7 @@ car_tarife_oranlari = {
 }
 
 # ================================================================
-# STREAMLIT UI
+# UI BAŞLANGIÇ
 # ================================================================
 
 st.set_page_config(page_title="TarifeX", layout="centered")
@@ -147,9 +145,9 @@ hesaplama_tipi = st.radio(
     ],
 )
 
-# ---------------------------------------------------------------
+# ================================================================
 # 1) YANGIN – TİCARİ/SINAİ
-# ---------------------------------------------------------------
+# ================================================================
 if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     st.subheader("🌊 Deprem Primi Hesaplayıcı")
 
@@ -159,4 +157,7 @@ if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
 
     kur_karsilik = fx_input(para_birimi, key_prefix="yangin")
 
-    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min
+    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min_value=0, step=1000)
+    bi = st.number_input("Kar Kaybı Bedeli (BI)", min_value=0, step=1000)
+    ymm = st.number_input("Yangın Mali Mesuliyet Bedeli (YMM)", min_value=0, step=1000)
+    enkaz = st.number_input("Enkaz Kaldırma Bedeli", min_value
