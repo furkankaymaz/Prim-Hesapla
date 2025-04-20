@@ -3,17 +3,20 @@ import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
+"""TarifeX – Akıllı Sigorta Prim Hesaplayıcı
+Bu dosya orijinal çalışır sürüm + TCMB döviz entegrasyonu içerir.
+"""
 ###############################################################
 # 1) TCMB DÖVİZ KURU MODÜLÜ                                   #
 ###############################################################
 @st.cache_data(ttl=60 * 60)  # 1‑saat önbellek
 def get_tcmb_rate(ccy: str):
-    """TCMB BanknoteSelling (yoksa ForexSelling) satış kurunu döndürür.
-    1) today.xml (iş günleri)
-    2) Bulunamazsa geriye doğru 7 gün taranır ve son iş günü alınır.
-    Dönüş: (rate, date_iso) veya (None, None)"""
+    """Son TCMB satış kuru.
+    1) today.xml
+    2) Bulunamazsa geriye doğru 7 güne kadar tarar.
+    Döner: (rate, date_iso) veya (None, None)"""
 
-    # 1) today.xml
+    # 1) today.xml (iş günü ise vardır)
     try:
         r = requests.get("https://www.tcmb.gov.tr/kurlar/today.xml", timeout=4)
         r.raise_for_status()
@@ -25,9 +28,9 @@ def get_tcmb_rate(ccy: str):
                 date_iso = datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime("%Y-%m-%d")
                 return rate, date_iso
     except Exception:
-        pass  # hafta sonu ya da TCMB erişim hatası
+        pass
 
-    # 2) geriye doğru tarama (max 7 gün)
+    # 2) geriye tarama (max 7 gün)
     today = datetime.today()
     for i in range(1, 8):
         d = today - timedelta(days=i)
@@ -49,24 +52,24 @@ def get_tcmb_rate(ccy: str):
 
 
 def fx_input(ccy: str, key_prefix: str) -> float:
-    """TRY dışındaki para birimleri için TCMB satış kuru + manuel düzeltme alanı."""
+    """TRY dışı para birimleri için TCMB kuru + manuel düzeltme"""
     if ccy == "TRY":
         return 1.0
 
     rate_key = f"{key_prefix}_rate"
     src_key = f"{key_prefix}_src"
-    date_key = f"{key_prefix}_date"
+    dt_key = f"{key_prefix}_dt"
 
     if rate_key not in st.session_state:
         rate, date_iso = get_tcmb_rate(ccy)
         if rate is None:
-            st.session_state.update({rate_key: 0.0, src_key: "MANUEL", date_key: "-"})
+            st.session_state.update({rate_key: 0.0, src_key: "MANUEL", dt_key: "-"})
         else:
-            st.session_state.update({rate_key: rate, src_key: "TCMB", date_key: date_iso})
+            st.session_state.update({rate_key: rate, src_key: "TCMB", dt_key: date_iso})
 
     st.info(
         f"1 {ccy} = {st.session_state[rate_key]:,.4f} TL "
-        f"({st.session_state[src_key]}, {st.session_state[date_key]})"
+        f"({st.session_state[src_key]}, {st.session_state[dt_key]})"
     )
 
     new_rate = st.number_input(
@@ -81,7 +84,7 @@ def fx_input(ccy: str, key_prefix: str) -> float:
     return new_rate
 
 ###############################################################
-# 2) TARİFE & İNDİRİM TABLOLARI                               #
+# 2) SABİT TABLOLAR                                            #
 ###############################################################
 
 tarife_oranlari = {
@@ -147,9 +150,4 @@ if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
 
     bina_tipi = st.selectbox("Yapı Tarzı", ["Betonarme", "Diğer"])
     deprem_bolgesi = st.selectbox("Deprem Risk Grubu (1=En Yüksek Risk)", list(range(1, 8)))
-    para_birimi = st.selectbox("Para Birimi", ["TRY", "USD", "EUR"])
-
-    kur_karsilik = fx_input(para_birimi, key_prefix="yangin")
-
-    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min_value=0, step=1000)
-    bi      = st.number_input("Kar Kaybı Bedeli (BI)", min_value=0, step
+    para_birimi = st.selectbox("Para Birimi", ["
