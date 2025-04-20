@@ -240,8 +240,8 @@ st.markdown(f'<h1 class="main-title">🏷️ {tr("title")}</h1>', unsafe_allow_h
 st.markdown(f'<h3 class="subtitle">{tr("subtitle")}</h3>', unsafe_allow_html=True)
 st.markdown('<p class="founders">Founders: Ubeydullah Ayvaz & Furkan Kaymaz</p>', unsafe_allow_html=True)
 
-# Earthquake-related image
-st.image("https://images.unsplash.com/photo-1628525803731-2ca12c7a7e40?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80", caption=tr("title"))
+# New image provided by the user
+st.image("attachment://TarifeX_Smart_Insurance_Premium_Calculator.jpg", caption=tr("title"))
 
 # Main Content
 st.markdown('<h2 class="section-header">📌 ' + ("Hesaplama Yap" if lang == "TR" else "Perform Calculation") + '</h2>', unsafe_allow_html=True)
@@ -312,6 +312,4 @@ else:
         st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {premium:,.2f} TRY</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
 
-# Footer with a construction-related image
-st.markdown("---")
-st.image("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80", caption=tr("title"))
+# Footer removed as per request
