@@ -4,77 +4,61 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 
 # ================================================================
-# FX UTILITIES – TCMB öncelikli, exchangerate.host yedekli
+# DÖVİZ KURU YARDIMCI FONKSİYONLARI (sadece TCMB; elle güncelle ops.)
 # ================================================================
-@st.cache_data(ttl=60 * 60)  # 1 saatte bir yenile
-def fetch_fx(currency: str):
-    """TCMB → exchangerate.host sıralamasıyla kuru getirir.
-    Dönen tuple: (rate, source, date_iso) veya (None, None, None)
-    """
-
-    # --- 1) TCMB -----------------------------------------------------------
+@st.cache_data(ttl=60 * 60)  # 1 saatte bir yeniler
+def get_tcmb_rate(ccy: str):
+    """TCMB bugün.xml’den satış kuru döner → (rate, date_iso) / (None, None)"""
     try:
-        tcmb_url = "https://www.tcmb.gov.tr/kurlar/today.xml"
-        r = requests.get(tcmb_url, timeout=4)
+        r = requests.get("https://www.tcmb.gov.tr/kurlar/today.xml", timeout=4)
         r.raise_for_status()
         root = ET.fromstring(r.content)
         for cur in root.findall("Currency"):
-            if cur.attrib.get("CurrencyCode") == currency:
-                text = (cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")).replace(",", ".")
-                rate = float(text)
+            if cur.attrib.get("CurrencyCode") == ccy:
+                text = (cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling"))
+                rate = float(text.replace(",", "."))
                 date_iso = datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime("%Y-%m-%d")
-                return rate, "TCMB", date_iso
+                return rate, date_iso
     except Exception:
         pass
-
-    # --- 2) exchangerate.host --------------------------------------------
-    try:
-        url = f"https://api.exchangerate.host/latest?base={currency}&symbols=TRY"
-        r = requests.get(url, timeout=4)
-        if r.ok and r.json().get("success"):
-            rate = r.json()["rates"]["TRY"]
-            date_iso = r.json()["date"]
-            return rate, "exchangerate.host", date_iso
-    except Exception:
-        pass
-
-    return None, None, None
+    return None, None
 
 
-def fx_input(para_birimi: str, key_prefix: str = "fx") -> float:
-    """TRY dışındaki para birimleri için otomatik kur + manuel güncelle seçeneği."""
-    if para_birimi == "TRY":
+def fx_input(ccy: str, key_prefix: str) -> float:
+    """TRY dışındaki para birimleri için TCMB satış kuru + manuel güncelleme alanı."""
+    if ccy == "TRY":
         return 1.0
 
-    rate_key = f"{key_prefix}_{para_birimi}_rate"
-    src_key = f"{key_prefix}_{para_birimi}_src"
-    dt_key = f"{key_prefix}_{para_birimi}_dt"
+    rate_key = f"{key_prefix}_rate"
+    src_key = f"{key_prefix}_src"
+    date_key = f"{key_prefix}_date"
 
+    # İlk seferde otomatik kur çek
     if rate_key not in st.session_state:
-        rate, src, dt = fetch_fx(para_birimi)
-        if rate is not None:
-            st.session_state.update({rate_key: rate, src_key: src, dt_key: dt})
+        rate, date_iso = get_tcmb_rate(ccy)
+        if rate is None:
+            rate, src, date_iso = 0.0, "MANUEL", "-"
         else:
-            st.session_state.update({rate_key: 0.0, src_key: "MANUEL", dt_key: "-"})
+            src = "TCMB"
+        st.session_state.update({rate_key: rate, src_key: src, date_key: date_iso})
 
-    if st.session_state[src_key] == "MANUEL":
-        st.warning("Otomatik kur alınamadı. Lütfen güncel kuru girin.", icon="⚠️")
-    else:
-        st.info(
-            f"1 {para_birimi} = {st.session_state[rate_key]:,.4f} TL "
-            f"({st.session_state[src_key]}, {st.session_state[dt_key]})"
-        )
+    # Bilgi şeridi
+    st.info(
+        f"1 {ccy} = {st.session_state[rate_key]:,.4f} TL "
+        f"({st.session_state[src_key]}, {st.session_state[date_key]})"
+    )
 
-    yeni_kur = st.number_input(
-        "Mevcut kuru manuel güncelleyebilirsiniz",
+    # Manuel güncelleme
+    new_rate = st.number_input(
+        "Kuru manuel güncelleyebilirsiniz",
         value=float(st.session_state[rate_key]),
         min_value=0.0,
         step=0.0001,
         format="%.4f",
-        key=f"{key_prefix}_kur_input",
+        key=f"{key_prefix}_manual",
     )
-    st.session_state[rate_key] = yeni_kur
-    return yeni_kur
+    st.session_state[rate_key] = new_rate
+    return new_rate
 
 # ================================================================
 # SABİT TABLOLAR
@@ -154,4 +138,19 @@ if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     para_birimi = st.selectbox("Para Birimi", ["TRY", "USD", "EUR"])
     kur_karsilik = fx_input(para_birimi, key_prefix="yangin")
 
-    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min
+    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min_value=0, step=1000)
+    bi = st.number_input("Kar Kaybı Bedeli (BI)", min_value=0, step=1000)
+    ymm = st.number_input("Yangın Mali Mesuliyet Bedeli (YMM)", min_value=0, step=1000)
+    enkaz = st.number_input("Enkaz Kaldırma Bedeli", min_value=0, step=1000)
+
+    toplam_bedel = (damage + bi + ymm + enkaz) * kur_karsilik
+
+    koasurans = st.selectbox("Koasürans Oranı", list(koasurans_indirimi.keys()))
+    muafiyet = st.selectbox("Muafiyet Oranı (%)", list(muafiyet_indirimi.keys()))
+
+    if st.button("Hesapla", key="deprem"):
+        oran = tarife_oranlari[bina_tipi][deprem_bolgesi - 1] / 1000
+        koasurans_ind = koasurans_indirimi[koasurans]
+        muafiyet_ind = muafiyet_indirimi[muafiyet]
+        nihai_oran = oran * (1 - koasurans_ind) * (1 - muafiyet_ind)
+        prim = toplam
