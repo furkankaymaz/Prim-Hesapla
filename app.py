@@ -3,14 +3,17 @@ import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
-# ================================================================
-# DÖVİZ KURU YARDIMCI – TCMB ÖNCELİKLİ (hafta sonu / tatil)
-# ================================================================
-@st.cache_data(ttl=60 * 60)  # 1 saat cache
+###############################################################
+# 1) TCMB DÖVİZ KURU MODÜLÜ                                   #
+###############################################################
+@st.cache_data(ttl=60 * 60)  # 1‑saat önbellek
 def get_tcmb_rate(ccy: str):
-    """Son TCMB satış kurunu getirir (today.xml veya geriye doğru 7 güne kadar)."""
+    """TCMB BanknoteSelling (yoksa ForexSelling) satış kurunu döndürür.
+    1) today.xml (iş günleri)
+    2) Bulunamazsa geriye doğru 7 gün taranır ve son iş günü alınır.
+    Dönüş: (rate, date_iso) veya (None, None)"""
 
-    # 1) today.xml (iş günleri)
+    # 1) today.xml
     try:
         r = requests.get("https://www.tcmb.gov.tr/kurlar/today.xml", timeout=4)
         r.raise_for_status()
@@ -22,7 +25,7 @@ def get_tcmb_rate(ccy: str):
                 date_iso = datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime("%Y-%m-%d")
                 return rate, date_iso
     except Exception:
-        pass
+        pass  # hafta sonu ya da TCMB erişim hatası
 
     # 2) geriye doğru tarama (max 7 gün)
     today = datetime.today()
@@ -46,7 +49,7 @@ def get_tcmb_rate(ccy: str):
 
 
 def fx_input(ccy: str, key_prefix: str) -> float:
-    """TRY dışındaki para birimleri için TCMB kuru getir + manuel güncelle."""
+    """TRY dışındaki para birimleri için TCMB satış kuru + manuel düzeltme alanı."""
     if ccy == "TRY":
         return 1.0
 
@@ -54,7 +57,6 @@ def fx_input(ccy: str, key_prefix: str) -> float:
     src_key = f"{key_prefix}_src"
     date_key = f"{key_prefix}_date"
 
-    # İlk kur çekimi
     if rate_key not in st.session_state:
         rate, date_iso = get_tcmb_rate(ccy)
         if rate is None:
@@ -78,27 +80,19 @@ def fx_input(ccy: str, key_prefix: str) -> float:
     st.session_state[rate_key] = new_rate
     return new_rate
 
-# ================================================================
-# SABİT TABLOLAR
-# ================================================================
+###############################################################
+# 2) TARİFE & İNDİRİM TABLOLARI                               #
+###############################################################
 
 tarife_oranlari = {
     "Betonarme": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75],
-    "Diğer": [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06],
+    "Diğer":     [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06],
 }
 
 koasurans_indirimi = {
-    "80/20": 0.00,
-    "75/25": 0.0625,
-    "70/30": 0.1250,
-    "65/35": 0.1875,
-    "60/40": 0.2500,
-    "55/45": 0.3125,
-    "50/50": 0.3750,
-    "45/55": 0.4375,
-    "40/60": 0.50,
-    "30/70": 0.1250,
-    "25/75": 0.0625,
+    "80/20": 0.00, "75/25": 0.0625, "70/30": 0.1250, "65/35": 0.1875,
+    "60/40": 0.2500, "55/45": 0.3125, "50/50": 0.3750, "45/55": 0.4375,
+    "40/60": 0.50,  "30/70": 0.1250, "25/75": 0.0625,
 }
 
 muafiyet_indirimi = {2: 0.00, 3: 0.06, 4: 0.13, 5: 0.19, 10: 0.35}
@@ -115,9 +109,9 @@ car_tarife_oranlari = {
     "B": [3.06, 2.79, 1.88, 1.00, 0.79, 0.63, 0.54],
 }
 
-# ================================================================
-# UI BAŞLANGIÇ
-# ================================================================
+###############################################################
+# 3) STREAMLIT UI                                              #
+###############################################################
 
 st.set_page_config(page_title="TarifeX", layout="centered")
 
@@ -145,9 +139,9 @@ hesaplama_tipi = st.radio(
     ],
 )
 
-# ================================================================
-# 1) YANGIN – TİCARİ/SINAİ
-# ================================================================
+###############################################################
+# 3A) YANGIN – TİCARİ/SINAİ                                    #
+###############################################################
 if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     st.subheader("🌊 Deprem Primi Hesaplayıcı")
 
@@ -158,6 +152,4 @@ if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     kur_karsilik = fx_input(para_birimi, key_prefix="yangin")
 
     damage = st.number_input("Yangın Sigorta Bedeli (PD)", min_value=0, step=1000)
-    bi = st.number_input("Kar Kaybı Bedeli (BI)", min_value=0, step=1000)
-    ymm = st.number_input("Yangın Mali Mesuliyet Bedeli (YMM)", min_value=0, step=1000)
-    enkaz = st.number_input("Enkaz Kaldırma Bedeli", min_value
+    bi      = st.number_input("Kar Kaybı Bedeli (BI)", min_value=0, step
