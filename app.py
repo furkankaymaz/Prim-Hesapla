@@ -1,14 +1,19 @@
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ================================================================
-# DÖVİZ KURU YARDIMCI FONKSİYONLARI (sadece TCMB; elle güncelle ops.)
+# DÖVİZ KURU YARDIMCI FONKSİYONLARI – TCMB önce, hafta sonu/ tatil
 # ================================================================
-@st.cache_data(ttl=60 * 60)  # 1 saatte bir yeniler
+@st.cache_data(ttl=60 * 60)  # 1 saat boyunca önbellek
 def get_tcmb_rate(ccy: str):
-    """TCMB bugün.xml’den satış kuru döner → (rate, date_iso) / (None, None)"""
+    """TCMB satış kuru getirir.
+    - Önce today.xml (hafta içi)
+    - Eğer bulunamazsa geriye doğru en fazla 7 gün gidip son iş gününü alır
+    Döner: (rate, date_iso) veya (None, None)
+    """
+    # --- 1) Doğrudan today.xml dene ------------------------------------------------
     try:
         r = requests.get("https://www.tcmb.gov.tr/kurlar/today.xml", timeout=4)
         r.raise_for_status()
@@ -20,12 +25,32 @@ def get_tcmb_rate(ccy: str):
                 date_iso = datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime("%Y-%m-%d")
                 return rate, date_iso
     except Exception:
-        pass
+        pass  # today.xml yoksa hafta sonu veya erişim hatası olabilir
+
+    # --- 2) Geriye doğru son iş günü ------------------------------------------------
+    today = datetime.today()
+    for i in range(1, 8):  # maksimum 7 gün geriye git
+        d = today - timedelta(days=i)
+        url = f"https://www.tcmb.gov.tr/kurlar/{d:%Y%m}/{d:%d%m%Y}.xml"
+        try:
+            r = requests.get(url, timeout=4)
+            if not r.ok:
+                continue
+            root = ET.fromstring(r.content)
+            for cur in root.findall("Currency"):
+                if cur.attrib.get("CurrencyCode") == ccy:
+                    text = (cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling"))
+                    rate = float(text.replace(",", "."))
+                    date_iso = d.strftime("%Y-%m-%d")
+                    return rate, date_iso
+        except Exception:
+            continue
+    # hiçbir şey bulunamadı
     return None, None
 
 
 def fx_input(ccy: str, key_prefix: str) -> float:
-    """TRY dışındaki para birimleri için TCMB satış kuru + manuel güncelleme alanı."""
+    """TRY dışındaki para birimleri için TCMB satış kuru + manuel güncelleme."""
     if ccy == "TRY":
         return 1.0
 
@@ -33,22 +58,18 @@ def fx_input(ccy: str, key_prefix: str) -> float:
     src_key = f"{key_prefix}_src"
     date_key = f"{key_prefix}_date"
 
-    # İlk seferde otomatik kur çek
     if rate_key not in st.session_state:
         rate, date_iso = get_tcmb_rate(ccy)
         if rate is None:
-            rate, src, date_iso = 0.0, "MANUEL", "-"
+            st.session_state.update({rate_key: 0.0, src_key: "MANUEL", date_key: "-"})
         else:
-            src = "TCMB"
-        st.session_state.update({rate_key: rate, src_key: src, date_key: date_iso})
+            st.session_state.update({rate_key: rate, src_key: "TCMB", date_key: date_iso})
 
-    # Bilgi şeridi
     st.info(
         f"1 {ccy} = {st.session_state[rate_key]:,.4f} TL "
         f"({st.session_state[src_key]}, {st.session_state[date_key]})"
     )
 
-    # Manuel güncelleme
     new_rate = st.number_input(
         "Kuru manuel güncelleyebilirsiniz",
         value=float(st.session_state[rate_key]),
@@ -133,24 +154,4 @@ hesaplama_tipi = st.radio(
 if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     st.subheader("🌊 Deprem Primi Hesaplayıcı")
 
-    bina_tipi = st.selectbox("Yapı Tarzı", ["Betonarme", "Diğer"])
-    deprem_bolgesi = st.selectbox("Deprem Risk Grubu (1=En Yüksek Risk)", list(range(1, 8)))
-    para_birimi = st.selectbox("Para Birimi", ["TRY", "USD", "EUR"])
-    kur_karsilik = fx_input(para_birimi, key_prefix="yangin")
-
-    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min_value=0, step=1000)
-    bi = st.number_input("Kar Kaybı Bedeli (BI)", min_value=0, step=1000)
-    ymm = st.number_input("Yangın Mali Mesuliyet Bedeli (YMM)", min_value=0, step=1000)
-    enkaz = st.number_input("Enkaz Kaldırma Bedeli", min_value=0, step=1000)
-
-    toplam_bedel = (damage + bi + ymm + enkaz) * kur_karsilik
-
-    koasurans = st.selectbox("Koasürans Oranı", list(koasurans_indirimi.keys()))
-    muafiyet = st.selectbox("Muafiyet Oranı (%)", list(muafiyet_indirimi.keys()))
-
-    if st.button("Hesapla", key="deprem"):
-        oran = tarife_oranlari[bina_tipi][deprem_bolgesi - 1] / 1000
-        koasurans_ind = koasurans_indirimi[koasurans]
-        muafiyet_ind = muafiyet_indirimi[muafiyet]
-        nihai_oran = oran * (1 - koasurans_ind) * (1 - muafiyet_ind)
-        prim = toplam
+    bina_tipi = st.selectbox("Yapı Tarzı", ["Beton
