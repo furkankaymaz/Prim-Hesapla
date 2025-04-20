@@ -8,10 +8,60 @@ from datetime import datetime, timedelta
 # ------------------------------------------------------------
 st.set_page_config(page_title="TarifeX", layout="centered")
 
+# Custom CSS for styling
+st.markdown("""
+<style>
+    .main-title {
+        font-size: 2.5em;
+        color: #2E86C1;
+        text-align: center;
+        margin-bottom: 0.5em;
+    }
+    .subtitle {
+        font-size: 1.2em;
+        color: #5DADE2;
+        text-align: center;
+        margin-bottom: 1em;
+    }
+    .section-header {
+        font-size: 1.5em;
+        color: #1A5276;
+        margin-top: 1em;
+        margin-bottom: 0.5em;
+    }
+    .stButton>button {
+        background-color: #2E86C1;
+        color: white;
+        border-radius: 10px;
+        padding: 0.5em 1em;
+    }
+    .stButton>button:hover {
+        background-color: #1A5276;
+        color: white;
+    }
+    .lang-selector {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 999;
+    }
+    .info-box {
+        background-color: #F0F8FF;
+        padding: 1em;
+        border-radius: 10px;
+        margin-bottom: 1em;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ------------------------------------------------------------
-# 0) LANGUAGE SELECTOR (TR / EN)
+# 0) LANGUAGE SELECTOR (TR / EN) - Top Right
 # ------------------------------------------------------------
-lang = st.sidebar.radio("Dil / Language", ["TR", "EN"], index=0)
+with st.container():
+    st.markdown('<div class="lang-selector">', unsafe_allow_html=True)
+    lang = st.radio("🌐", ["TR", "EN"], index=0, horizontal=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
 T = {
     "title": {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplayıcı", "EN": "TarifeX – Smart Insurance Premium Calculator"},
     "subtitle": {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı", "EN": "Earthquake & Volcanic Eruption Cover"},
@@ -92,7 +142,7 @@ def fx_input(ccy: str, key_prefix: str) -> float:
             st.session_state.update({r_key: 0.0, s_key: "MANUEL", d_key: "-"})
         else:
             st.session_state.update({r_key: rate, s_key: "TCMB", d_key: dt})
-    st.info(f"1 {ccy} = {st.session_state[r_key]:,.4f} TL ({st.session_state[s_key]}, {st.session_state[d_key]})")
+    st.info(f"💱 1 {ccy} = {st.session_state[r_key]:,.4f} TL ({st.session_state[s_key]}, {st.session_state[d_key]})")
     st.session_state[r_key] = st.number_input(tr("manual_fx"), value=float(st.session_state[r_key]), step=0.0001, format="%.4f", key=f"{key_prefix}_{ccy}_manual")
     return st.session_state[r_key]
 
@@ -130,7 +180,7 @@ def calculate_duration_multiplier(months: int) -> float:
 def calculate_fire_premium(building_type, risk_group, currency, pd, bi, ymm, debris, koas, deduct, fx_rate):
     total_sum_insured = (pd + bi + ymm + debris) * fx_rate
     if total_sum_insured > 850_000_000:
-        st.warning("Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.")
+        st.warning("⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.")
         total_sum_insured = 850_000_000
     
     rate = tarife_oranlari[building_type][risk_group - 1]
@@ -145,10 +195,10 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, ymm, deb
 def calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, currency, koas, deduct, fx_rate):
     total_sum_insured = (project + cpm + cpe) * fx_rate
     if total_sum_insured > 850_000_000:
-        st.warning("Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.")
+        st.warning("⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.")
         total_sum_insured = 850_000_000
     
-    base_rate = tarife_oranlari["Betonarme"][risk_class - 1]  # Using Betonarme rates for CAR/EAR
+    base_rate = tarife_oranlari["Betonarme"][risk_class - 1]
     duration_multiplier = calculate_duration_multiplier(duration_months)
     koas_discount = koasurans_indirimi[koas]
     deduct_discount = muafiyet_indirimi[deduct]
@@ -161,48 +211,139 @@ def calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, cu
 # ------------------------------------------------------------
 # 4) STREAMLIT UI
 # ------------------------------------------------------------
-st.title(tr("title"))
-st.subheader(tr("subtitle"))
+# Header with Image
+st.markdown('<h1 class="main-title">🏷️ TarifeX</h1>', unsafe_allow_html=True)
+st.markdown('<h3 class="subtitle">Deprem ve Yanardağ Püskürmesi Teminatı 🌋</h3>', unsafe_allow_html=True)
 
-calc_type = st.selectbox(tr("select_calc"), [tr("calc_fire"), tr("calc_car")])
+# Placeholder for a header image (you can replace the URL with a relevant image)
+st.image("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80", caption="Sigorta Hesaplama Kolaylığı")
+
+# Project Summary
+with st.expander("📋 Proje Özeti"):
+    st.markdown("""
+    ### Proje Özeti (Tam Açıklamalı)
+    **🏷️ Proje Adı:** TarifeX - Akıllı Sigorta Prim Hesaplama Uygulaması
+
+    **🎯 Projenin Amacı:**
+    - Türkiye’deki zorunlu Deprem ve Yanardağ Püskürmesi Teminatı için,
+    - Ticari ve Sınai Rizikolar poliçeleri ile İnşaat & Montaj (CAR & EAR) poliçelerine ait minimum deprem primlerini doğru ve güncel tarifeye göre hesaplamak.
+    - Kullanıcıların hızlı ve teknik doğru prim tahmini yapabilmesini sağlamak.
+    - Acente ve brokerler için pratik danışmanlık ve fiyatlama aracı oluşturmak.
+
+    **🛠️ Kullanılan Teknolojiler:**
+    - Python 3.12+
+    - Streamlit (web tabanlı uygulama için)
+    - Requests (API bağlantısı için)
+    - XML parsing (TCMB verisi için)
+    - Canvas geliştirme ortamı
+
+    **🧩 Uygulamanın Ana Modülleri:**
+    1. **Yangın Sigortası - Ticari Sınai Rizikolar (PD & BI)**  
+       Kullanıcıdan: Yapı Tarzı, Deprem Risk Grubu, Para Birimi, Sigorta Bedelleri alınır.  
+       Güncel tarife oranlarına göre: Toplam Bedel, Koasürans indirimi, Muafiyet indirimi, Nihai prim hesaplanır.
+    2. **İnşaat & Montaj (CAR & EAR)**  
+       Kullanıcıdan: Risk sınıfı, Sigorta süresi, Teminat bedelleri, Koasürans ve Muafiyet oranları alınır.  
+       Süre çarpanı ve yapı bazlı tarife oranı kullanılarak: CAR primi, İnşaat Makineleri primi (CPM), Şantiye Tesisleri primi (CPE), Toplam prim hesaplanır.
+
+    **💱 Döviz Kuru Modülü:**
+    - İlk Kaynak: exchangerate.host
+    - Yedek Kaynak: TCMB today.xml
+    - USD/TRY ve EUR/TRY satış kurları çekiliyor.
+    - Güncelleme tarihi ve veri kaynağı (exchangerate veya TCMB) gösteriliyor.
+
+    **📈 Hesaplama Adımları:**
+    - Sigorta bedelleri para birimi çevrimi yapılarak TRY bazında hesaplanıyor.
+    - İlgili tarifeye göre oran seçiliyor.
+    - Koasürans ve Muafiyet indirimleri uygulanıyor.
+    - Nihai oran belirlenip toplam prim hesaplanıyor.
+
+    **⚙️ Teknik Detaylar:**
+    - Süre çarpanları 6-36 ay için sabit tabloyla alınır.
+    - 36 ay üstü projelerde her ay %3 artış uygulanır.
+    - Prim limitleri 850 milyon TRY eşik değerine göre ayarlanır.
+    - Kod tamamen modüler ve genişlemeye açıktır.
+
+    **🚀 Geliştirilebilecek Ekstra Özellikler:**
+    - Prim sonucunu PDF raporu olarak dışa aktarabilme
+    - Hesaplama geçmişi saklama
+    - Çoklu dil desteği (İngilizce/Türkçe)
+    - Kullanıcı paneli (login/signup)
+    - Üçüncü şahıs teminat modülü eklemek
+    - Webhook ile acente CRM sistemlerine entegrasyon
+
+    **👤 Kurucu:** [Kurucu Bilgisi Eklenmedi]  
+    **📅 Son Güncelleme:** Nisan 2025
+    """)
+
+# Main Content
+st.markdown('<h2 class="section-header">📌 Hesaplama Yap</h2>', unsafe_allow_html=True)
+calc_type = st.selectbox(tr("select_calc"), [tr("calc_fire"), tr("calc_car")], help="Hesaplama türünü seçerek başlayın.")
 
 if calc_type == tr("calc_fire"):
-    st.header(tr("calc_fire"))
-    building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"])
-    risk_group = st.selectbox(tr("risk_group"), [1, 2, 3, 4, 5, 6, 7])
-    currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
-    fx_rate = fx_input(currency, "fire")
+    st.markdown('<h3 class="section-header">🔥 Yangın Sigortası Hesaplama</h3>', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"])
+        risk_group = st.selectbox(tr("risk_group"), [1, 2, 3, 4, 5, 6, 7])
+        currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
+    with col2:
+        fx_rate = fx_input(currency, "fire")
     
-    pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0)
-    bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0)
-    ymm = st.number_input(tr("ymm"), min_value=0.0, value=0.0, step=1000.0)
-    debris = st.number_input(tr("debris"), min_value=0.0, value=0.0, step=1000.0)
-    koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()))
-    deduct = st.selectbox(tr("deduct"), list(muafiyet_indirimi.keys()))
+    st.markdown("### Sigorta Bedelleri")
+    col3, col4 = st.columns(2)
+    with col3:
+        pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0)
+        bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0)
+    with col4:
+        ymm = st.number_input(tr("ymm"), min_value=0.0, value=0.0, step=1000.0)
+        debris = st.number_input(tr("debris"), min_value=0.0, value=0.0, step=1000.0)
     
-    if st.button(tr("btn_calc")):
+    st.markdown("### İndirim Oranları")
+    col5, col6 = st.columns(2)
+    with col5:
+        koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()))
+    with col6:
+        deduct = st.selectbox(tr("deduct"), list(muafiyet_indirimi.keys()))
+    
+    if st.button(tr("btn_calc"), key="fire_calc"):
         premium, applied_rate = calculate_fire_premium(building_type, risk_group, currency, pd, bi, ymm, debris, koas, deduct, fx_rate)
-        st.success(f"{tr('min_premium')}: {premium:,.2f} TRY")
-        st.info(f"{tr('applied_rate')}: {applied_rate:.2f}%")
+        st.markdown(f'<div class="info-box">✅ <b>{tr("min_premium")}:</b> {premium:,.2f} TRY</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
 
 else:
-    st.header(tr("calc_car"))
-    risk_class = st.selectbox(tr("risk_class"), [1, 2, 3, 4, 5, 6, 7])
-    start_date = st.date_input(tr("start"), value=datetime.today())
-    end_date = st.date_input(tr("end"), value=datetime.today() + timedelta(days=365))
-    duration_months = max(1, (end_date.year - start_date.year) * 12 + end_date.month - start_date.month)
-    st.write(f"{tr('duration')}: {duration_months} {tr('months')}")
+    st.markdown('<h3 class="section-header">🏗️ İnşaat & Montaj Hesaplama</h3>', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        risk_class = st.selectbox(tr("risk_class"), [1, 2, 3, 4, 5, 6, 7])
+        start_date = st.date_input(tr("start"), value=datetime.today())
+        end_date = st.date_input(tr("end"), value=datetime.today() + timedelta(days=365))
+    with col2:
+        duration_months = max(1, (end_date.year - start_date.year) * 12 + end_date.month - start_date.month)
+        st.write(f"⏳ {tr('duration')}: {duration_months} {tr('months')}")
+        currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
+        fx_rate = fx_input(currency, "car")
     
-    currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
-    fx_rate = fx_input(currency, "car")
+    st.markdown("### Sigorta Bedelleri")
+    col3, col4, col5 = st.columns(3)
+    with col3:
+        project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0)
+    with col4:
+        cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0)
+    with col5:
+        cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0)
     
-    project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0)
-    cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0)
-    cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0)
-    koas = st.selectbox(tr("coins"), list(koasurans_indirimi.keys()))
-    deduct = st.selectbox(tr("ded"), list(muafiyet_indirimi.keys()))
+    st.markdown("### İndirim Oranları")
+    col6, col7 = st.columns(2)
+    with col6:
+        koas = st.selectbox(tr("coins"), list(koasurans_indirimi.keys()))
+    with col7:
+        deduct = st.selectbox(tr("ded"), list(muafiyet_indirimi.keys()))
     
-    if st.button(tr("btn_calc")):
+    if st.button(tr("btn_calc"), key="car_calc"):
         premium, applied_rate = calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, currency, koas, deduct, fx_rate)
-        st.success(f"{tr('total_premium')}: {premium:,.2f} TRY")
-        st.info(f"{tr('applied_rate')}: {applied_rate:.2f}%")
+        st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {premium:,.2f} TRY</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
+
+# Footer with an Image
+st.markdown("---")
+st.image("https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80", caption="TarifeX ile Sigorta Hesaplama Artık Çok Kolay!")
