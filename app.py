@@ -4,16 +4,16 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
 # ================================================================
-# DÖVİZ KURU YARDIMCI FONKSİYONLARI – TCMB önce, hafta sonu/ tatil
+# DÖVİZ KURU YARDIMCI FONKSİYONLARI – TCMB ÖNCELİKLİ (hafta sonu / tatil)
 # ================================================================
-@st.cache_data(ttl=60 * 60)  # 1 saat boyunca önbellek
+@st.cache_data(ttl=60 * 60)  # 1 saat cache
 def get_tcmb_rate(ccy: str):
-    """TCMB satış kuru getirir.
-    - Önce today.xml (hafta içi)
-    - Eğer bulunamazsa geriye doğru en fazla 7 gün gidip son iş gününü alır
-    Döner: (rate, date_iso) veya (None, None)
-    """
-    # --- 1) Doğrudan today.xml dene ------------------------------------------------
+    """TCMB satış kuru döndürür.
+    1) today.xml (çalışma günü)
+    2) Bulunamazsa geriye doğru en fazla 7 gün giderek son iş gününü getirir.
+    Döner: (rate, date_iso) veya (None, None)"""
+
+    # 1) today.xml dene
     try:
         r = requests.get("https://www.tcmb.gov.tr/kurlar/today.xml", timeout=4)
         r.raise_for_status()
@@ -25,11 +25,11 @@ def get_tcmb_rate(ccy: str):
                 date_iso = datetime.strptime(root.attrib["Date"], "%d.%m.%Y").strftime("%Y-%m-%d")
                 return rate, date_iso
     except Exception:
-        pass  # today.xml yoksa hafta sonu veya erişim hatası olabilir
+        pass  # hafta sonu veya erişim hatası
 
-    # --- 2) Geriye doğru son iş günü ------------------------------------------------
+    # 2) geriye doğru tarama (max 7 gün)
     today = datetime.today()
-    for i in range(1, 8):  # maksimum 7 gün geriye git
+    for i in range(1, 8):
         d = today - timedelta(days=i)
         url = f"https://www.tcmb.gov.tr/kurlar/{d:%Y%m}/{d:%d%m%Y}.xml"
         try:
@@ -45,12 +45,11 @@ def get_tcmb_rate(ccy: str):
                     return rate, date_iso
         except Exception:
             continue
-    # hiçbir şey bulunamadı
     return None, None
 
 
 def fx_input(ccy: str, key_prefix: str) -> float:
-    """TRY dışındaki para birimleri için TCMB satış kuru + manuel güncelleme."""
+    """TRY dışındaki para birimleri için TCMB satış kuru + manuel düzeltme"""
     if ccy == "TRY":
         return 1.0
 
@@ -82,7 +81,7 @@ def fx_input(ccy: str, key_prefix: str) -> float:
     return new_rate
 
 # ================================================================
-# SABİT TABLOLAR
+# TARİFE SABİT TABLOLARI
 # ================================================================
 
 tarife_oranlari = {
@@ -154,4 +153,10 @@ hesaplama_tipi = st.radio(
 if hesaplama_tipi == "Yangın Sigortası - Ticari Sinai Rizikolar (PD & BI)":
     st.subheader("🌊 Deprem Primi Hesaplayıcı")
 
-    bina_tipi = st.selectbox("Yapı Tarzı", ["Beton
+    bina_tipi = st.selectbox("Yapı Tarzı", ["Betonarme", "Diğer"])
+    deprem_bolgesi = st.selectbox("Deprem Risk Grubu (1=En Yüksek Risk)", list(range(1, 8)))
+    para_birimi = st.selectbox("Para Birimi", ["TRY", "USD", "EUR"])
+
+    kur_karsilik = fx_input(para_birimi, key_prefix="yangin")
+
+    damage = st.number_input("Yangın Sigorta Bedeli (PD)", min
