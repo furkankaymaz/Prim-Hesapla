@@ -93,7 +93,7 @@ T = {
     "deduct_help": {"TR": "Her hasarda bina sigorta bedeli üzerinden uygulanır. Min. %2, artırılabilir (max. %35 indirim).", "EN": "Applied per loss on the building sum insured. Min. 2%, can be increased (max. 35% discount)."},
     "btn_calc": {"TR": "Hesapla", "EN": "Calculate"},
     "min_premium": {"TR": "Minimum Deprem Primi", "EN": "Minimum Earthquake Premium"},
-    "applied_rate": {"TR": "Uygulanan Oran %", "EN": "Applied Rate %"},
+    "applied_rate": {"TR": "Uygulanan Oran (binde)", "EN": "Applied Rate (per mille)"},
     "risk_class": {"TR": "Risk Sınıfı", "EN": "Risk Class"},
     "risk_class_help": {"TR": "A: Bina inşaatları, dekorasyon. B: Tünel, köprü, enerji santralleri gibi daha riskli projeler.", "EN": "A: Building construction, decoration. B: Tunnels, bridges, power plants, and other high-risk projects."},
     "start": {"TR": "Poliçe Başlangıcı", "EN": "Policy Start"},
@@ -112,8 +112,10 @@ T = {
     "cpe": {"TR": "Şantiye Tesisleri (CPE)", "EN": "Site Facilities (CPE)"},
     "cpe_help": {"TR": "Şantiye tesisleri için teminat bedeli. Aynı riziko adresinde bulunmalı.", "EN": "Sum insured for site facilities. Must be at the same risk address."},
     "total_premium": {"TR": "Toplam Minimum Prim", "EN": "Total Minimum Premium"},
-    "limit_warning": {"TR": "⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Total sum insured exceeds the 850 million TRY limit. Premium calculation will be based on this limit."},
-    "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"}
+    "limit_warning": {"TR": "⚠️ Toplam sigorta bedeli 3.5 milyar TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Total sum insured exceeds the 3.5 billion TRY limit. Premium calculation will be based on this limit."},
+    "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
+    "pd_premium": {"TR": "PD Primi", "EN": "PD Premium"},
+    "bi_premium": {"TR": "BI Primi", "EN": "BI Premium"}
 }
 
 def tr(key: str) -> str:
@@ -204,19 +206,41 @@ def calculate_duration_multiplier(months: int) -> float:
     return base * (1 + 0.03 * extra_months)
 
 def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate):
-    total_sum_insured = (pd + bi) * fx_rate  # Convert to TRY for calculation
-    if total_sum_insured > 850_000_000:
-        st.warning(tr("limit_warning"))
-        total_sum_insured = 850_000_000
+    # Convert суммы to TRY
+    pd_sum_insured = pd * fx_rate
+    bi_sum_insured = bi * fx_rate
     
+    # Get base tariff rate (per mille)
     rate = tarife_oranlari[building_type][risk_group - 1]
+    
+    # Limit for premium calculation
+    LIMIT = 3_500_000_000  # 3.5 billion TRY
+    
+    # Calculate PD premium with limit adjustment
+    if pd_sum_insured > LIMIT:
+        st.warning(tr("limit_warning"))
+        adjusted_rate_pd = (LIMIT / pd_sum_insured) * rate
+        pd_premium = (pd_sum_insured * adjusted_rate_pd) / 1000  # Per mille
+    else:
+        pd_premium = (pd_sum_insured * rate) / 1000  # Per mille
+    
+    # Apply koasürans and muafiyet discounts to PD premium only
     koas_discount = koasurans_indirimi[koas]
     deduct_discount = muafiyet_indirimi[deduct]
+    pd_premium *= (1 - koas_discount) * (1 - deduct_discount)
     
-    final_rate = rate * (1 - koas_discount) * (1 - deduct_discount)
-    premium = (total_sum_insured * final_rate) / 100  # Premium in TRY
+    # Calculate BI premium with limit adjustment (no koasürans or muafiyet)
+    if bi_sum_insured > LIMIT:
+        st.warning(tr("limit_warning"))
+        adjusted_rate_bi = (LIMIT / bi_sum_insured) * rate
+        bi_premium = (bi_sum_insured * adjusted_rate_bi) / 1000  # Per mille
+    else:
+        bi_premium = (bi_sum_insured * rate) / 1000  # Per mille
     
-    return premium, final_rate
+    # Total premium
+    total_premium = pd_premium + bi_premium
+    
+    return pd_premium, bi_premium, total_premium, rate
 
 def calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, currency, koas, deduct, fx_rate):
     total_sum_insured = (project + cpm + cpe) * fx_rate  # Convert to TRY for calculation
@@ -279,13 +303,19 @@ if calc_type == tr("calc_fire"):
         deduct = st.selectbox(tr("deduct"), list(muafiyet_indirimi.keys()), help=tr("deduct_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
-        premium, applied_rate = calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate)
+        pd_premium, bi_premium, total_premium, applied_rate = calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate)
         if currency != "TRY":
-            premium_converted = premium / fx_rate
-            st.markdown(f'<div class="info-box">✅ <b>{tr("min_premium")}:</b> {format_number(premium_converted, currency)}</div>', unsafe_allow_html=True)
+            pd_premium_converted = pd_premium / fx_rate
+            bi_premium_converted = bi_premium / fx_rate
+            total_premium_converted = total_premium / fx_rate
+            st.markdown(f'<div class="info-box">✅ <b>{tr("pd_premium")}:</b> {format_number(pd_premium_converted, currency)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("bi_premium")}:</b> {format_number(bi_premium_converted, currency)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(total_premium_converted, currency)}</div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="info-box">✅ <b>{tr("min_premium")}:</b> {format_number(premium, "TRY")}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("pd_premium")}:</b> {format_number(pd_premium, "TRY")}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("bi_premium")}:</b> {format_number(bi_premium, "TRY")}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(total_premium, "TRY")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}‰</div>', unsafe_allow_html=True)
 
 else:
     st.markdown(f'<h3 class="section-header">{tr("car_header")}</h3>', unsafe_allow_html=True)
