@@ -183,22 +183,10 @@ MIN_PREMIUM_CAR = 5000   # TRY
 # 3) HELPER FUNCTIONS
 # ------------------------------------------------------------
 def get_exchange_rate(currency: str) -> float:
-    if currency == "TRY":
-        return 1.0
-    url = "https://www.tcmb.gov.tr/kurlar/today.xml"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-        for forex in root.findall("Currency"):
-            if forex.find("Isim").text == currency:
-                buying = float(forex.find("ForexBuying").text)
-                return buying
-        st.error(f"{currency} kuru bulunamadı.")
-        return 1.0
-    except Exception as e:
-        st.error(f"Kur alınamadı: {e}")
-        return 1.0
+    # Since network calls are not allowed in Pyodide, we'll return default values
+    # In a real environment, this would fetch from TCMB
+    rates = {"TRY": 1.0, "USD": 34.0, "EUR": 36.0}  # Approximate rates as of April 2025
+    return rates.get(currency, 1.0)
 
 def calculate_duration_multiplier(months: int) -> float:
     if months <= 36:
@@ -272,13 +260,13 @@ def calculate_car_ear_premium(project: float, cpm: float, cpe: float, fx_rate: f
 # ------------------------------------------------------------
 # 4) INPUT FORM
 # ------------------------------------------------------------
-calc_type = st.selectbox(tr("select_calc"), [tr("calc_fire"), tr("calc_car")])
-
-# Currency selection
+# Currency selection (moved back to the top)
 currencies = ["TRY", "USD", "EUR"]
 currency = st.selectbox(tr("currency"), currencies)
 fx_rate = get_exchange_rate(currency)
 fx_rate = st.number_input(tr("manual_fx"), value=fx_rate, min_value=0.0, step=0.01)
+
+calc_type = st.selectbox(tr("select_calc"), [tr("calc_fire"), tr("calc_car")])
 
 # Fire Insurance Form (unchanged)
 if calc_type == tr("calc_fire"):
@@ -312,7 +300,7 @@ if calc_type == tr("calc_fire"):
         st.markdown(f"- **{tr('applied_rate')}**: {applied_rate:.2f} ‰")
         st.markdown(f"*{tr('min_premium_info')}*")
 
-# CAR/EAR Insurance Form (updated UI for risk group type)
+# CAR/EAR Insurance Form (only risk group type is ensured)
 else:
     st.markdown(f'<div class="section-header">{tr("car_header")}</div>', unsafe_allow_html=True)
     
