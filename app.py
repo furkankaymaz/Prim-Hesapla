@@ -27,36 +27,6 @@ st.markdown("""
         font-size: 1em;
         color: #1A5276;
         text-align: center;
-        margin-bottom: 1em;…
-[11:20, 26.04.2025] Furkan Kaymaz: import streamlit as st
-import requests
-import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
-
-# ------------------------------------------------------------
-# STREAMLIT CONFIG (must be first)
-# ------------------------------------------------------------
-st.set_page_config(page_title="TarifeX", layout="centered")
-
-# Custom CSS for styling
-st.markdown("""
-<style>
-    .main-title {
-        font-size: 2.5em;
-        color: #2E86C1;
-        text-align: center;
-        margin-bottom: 0.5em;
-    }
-    .subtitle {
-        font-size: 1.2em;
-        color: #5DADE2;
-        text-align: center;
-        margin-bottom: 0.5em;
-    }
-    .founders {
-        font-size: 1em;
-        color: #1A5276;
-        text-align: center;
         margin-bottom: 1em;
     }
     .section-header {
@@ -143,7 +113,8 @@ T = {
     "cpe_help": {"TR": "Şantiye tesisleri için teminat bedeli. Aynı riziko adresinde bulunmalı.", "EN": "Sum insured for site facilities. Must be at the same risk address."},
     "total_premium": {"TR": "Toplam Minimum Prim", "EN": "Total Minimum Premium"},
     "limit_warning": {"TR": "⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Total sum insured exceeds the 850 million TRY limit. Premium calculation will be based on this limit."},
-    "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"}
+    "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
+    "invalid_input": {"TR": "Geçersiz giriş! Lütfen yalnızca sayı girin.", "EN": "Invalid input! Please enter only numbers."}
 }
 
 def tr(key: str) -> str:
@@ -199,8 +170,17 @@ def fx_input(ccy: str, key_prefix: str) -> float:
 
 # Helper function to format numbers with thousand separators
 def format_number(value: float, currency: str) -> str:
-    formatted_value = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    formatted_value = f"{value:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"{formatted_value} {currency}"
+
+# Helper function to parse formatted number back to float
+def parse_formatted_number(formatted_value: str) -> float:
+    try:
+        # Remove thousand separators and convert to float
+        clean_value = formatted_value.replace(".", "").replace(",", "").split()[0]
+        return float(clean_value)
+    except (ValueError, IndexError):
+        return 0.0
 
 # ------------------------------------------------------------
 # 2) CONSTANT TABLES
@@ -293,13 +273,47 @@ if calc_type == tr("calc_fire"):
     if currency != "TRY":
         st.info(fx_info)
     
-    pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
-    if pd > 0:
-        st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
+    # PD Input
+    pd_key = "pd_input"
+    if pd_key not in st.session_state:
+        st.session_state[pd_key] = "0"
     
-    bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
-    if bi > 0:
-        st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
+    pd_input = st.text_input(tr("pd"), value=st.session_state[pd_key], help=tr("pd_help"), key=f"{pd_key}_text")
+    col_pd1, col_pd2 = st.columns([3, 1])
+    with col_pd1:
+        st.empty()  # Placeholder for the text input (already rendered above)
+    with col_pd2:
+        st.write(currency)
+    
+    try:
+        pd_value = float(pd_input.replace(".", "").replace(",", "").split()[0])
+        st.session_state[pd_key] = format_number(pd_value, "").strip()
+        pd = pd_value
+    except (ValueError, IndexError):
+        st.error(tr("invalid_input"))
+        st.session_state[pd_key] = "0"
+        pd = 0.0
+    
+    # BI Input
+    bi_key = "bi_input"
+    if bi_key not in st.session_state:
+        st.session_state[bi_key] = "0"
+    
+    bi_input = st.text_input(tr("bi"), value=st.session_state[bi_key], help=tr("bi_help"), key=f"{bi_key}_text")
+    col_bi1, col_bi2 = st.columns([3, 1])
+    with col_bi1:
+        st.empty()
+    with col_bi2:
+        st.write(currency)
+    
+    try:
+        bi_value = float(bi_input.replace(".", "").replace(",", "").split()[0])
+        st.session_state[bi_key] = format_number(bi_value, "").strip()
+        bi = bi_value
+    except (ValueError, IndexError):
+        st.error(tr("invalid_input"))
+        st.session_state[bi_key] = "0"
+        bi = 0.0
     
     st.markdown("### " + ("İndirim Oranları" if lang == "TR" else "Discount Rates"))
     col5, col6 = st.columns(2)
@@ -336,17 +350,70 @@ else:
     
     col3, col4, col5 = st.columns(3)
     with col3:
-        project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0, help=tr("project_help"))
-        if project > 0:
-            st.write(f"{tr('entered_value')}: {format_number(project, currency)}")
+        # Project Input
+        project_key = "project_input"
+        if project_key not in st.session_state:
+            st.session_state[project_key] = "0"
+        
+        project_input = st.text_input(tr("project"), value=st.session_state[project_key], help=tr("project_help"), key=f"{project_key}_text")
+        col_proj1, col_proj2 = st.columns([3, 1])
+        with col_proj1:
+            st.empty()
+        with col_proj2:
+            st.write(currency)
+        
+        try:
+            project_value = float(project_input.replace(".", "").replace(",", "").split()[0])
+            st.session_state[project_key] = format_number(project_value, "").strip()
+            project = project_value
+        except (ValueError, IndexError):
+            st.error(tr("invalid_input"))
+            st.session_state[project_key] = "0"
+            project = 0.0
+    
     with col4:
-        cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpm_help"))
-        if cpm > 0:
-            st.write(f"{tr('entered_value')}: {format_number(cpm, currency)}")
+        # CPM Input
+        cpm_key = "cpm_input"
+        if cpm_key not in st.session_state:
+            st.session_state[cpm_key] = "0"
+        
+        cpm_input = st.text_input(tr("cpm"), value=st.session_state[cpm_key], help=tr("cpm_help"), key=f"{cpm_key}_text")
+        col_cpm1, col_cpm2 = st.columns([3, 1])
+        with col_cpm1:
+            st.empty()
+        with col_cpm2:
+            st.write(currency)
+        
+        try:
+            cpm_value = float(cpm_input.replace(".", "").replace(",", "").split()[0])
+            st.session_state[cpm_key] = format_number(cpm_value, "").strip()
+            cpm = cpm_value
+        except (ValueError, IndexError):
+            st.error(tr("invalid_input"))
+            st.session_state[cpm_key] = "0"
+            cpm = 0.0
+    
     with col5:
-        cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpe_help"))
-        if cpe > 0:
-            st.write(f"{tr('entered_value')}: {format_number(cpe, currency)}")
+        # CPE Input
+        cpe_key = "cpe_input"
+        if cpe_key not in st.session_state:
+            st.session_state[cpe_key] = "0"
+        
+        cpe_input = st.text_input(tr("cpe"), value=st.session_state[cpe_key], help=tr("cpe_help"), key=f"{cpe_key}_text")
+        col_cpe1, col_cpe2 = st.columns([3, 1])
+        with col_cpe1:
+            st.empty()
+        with col_cpe2:
+            st.write(currency)
+        
+        try:
+            cpe_value = float(cpe_input.replace(".", "").replace(",", "").split()[0])
+            st.session_state[cpe_key] = format_number(cpe_value, "").strip()
+            cpe = cpe_value
+        except (ValueError, IndexError):
+            st.error(tr("invalid_input"))
+            st.session_state[cpe_key] = "0"
+            cpe = 0.0
     
     st.markdown("### " + ("İndirim Oranları" if lang == "TR" else "Discount Rates"))
     col6, col7 = st.columns(2)
