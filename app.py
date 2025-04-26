@@ -270,13 +270,21 @@ if calc_type == tr("calc_fire"):
     if currency != "TRY":
         st.info(fx_info)
     
-    pd_label = f'{tr("pd")} <span class="enter-message">({tr("enter_message")})</span>'
-    pd = st.number_input(pd_label, min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"), label_visibility="visible")
+    # PD Input with message on the right
+    col_pd1, col_pd2 = st.columns([3, 1])
+    with col_pd1:
+        pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
+    with col_pd2:
+        st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
     if pd > 0:
         st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
     
-    bi_label = f'{tr("bi")} <span class="enter-message">({tr("enter_message")})</span>'
-    bi = st.number_input(bi_label, min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"), label_visibility="visible")
+    # BI Input with message on the right
+    col_bi1, col_bi2 = st.columns([3, 1])
+    with col_bi1:
+        bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
+    with col_bi2:
+        st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
     if bi > 0:
         st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
     
@@ -315,18 +323,30 @@ else:
     
     col3, col4, col5 = st.columns(3)
     with col3:
-        project_label = f'{tr("project")} <span class="enter-message">({tr("enter_message")})</span>'
-        project = st.number_input(project_label, min_value=0.0, value=0.0, step=1000.0, help=tr("project_help"), label_visibility="visible")
+        # Project Input with message on the right
+        col_proj1, col_proj2 = st.columns([3, 1])
+        with col_proj1:
+            project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0, help=tr("project_help"))
+        with col_proj2:
+            st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
         if project > 0:
             st.write(f"{tr('entered_value')}: {format_number(project, currency)}")
     with col4:
-        cpm_label = f'{tr("cpm")} <span class="enter-message">({tr("enter_message")})</span>'
-        cpm = st.number_input(cpm_label, min_value=0.0, value=0.0, step=1000.0, help=tr("cpm_help"), label_visibility="visible")
+        # CPM Input with message on the right
+        col_cpm1, col_cpm2 = st.columns([3, 1])
+        with col_cpm1:
+            cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpm_help"))
+        with col_cpm2:
+            st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
         if cpm > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpm, currency)}")
     with col5:
-        cpe_label = f'{tr("cpe")} <span class="enter-message">({tr("enter_message")})</span>'
-        cpe = st.number_input(cpe_label, min_value=0.0, value=0.0, step=1000.0, help=tr("cpe_help"), label_visibility="visible")
+        # CPE Input with message on the right
+        col_cpe1, col_cpe2 = st.columns([3, 1])
+        with col_cpe1:
+            cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpe_help"))
+        with col_cpe2:
+            st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
         if cpe > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpe, currency)}")
     
