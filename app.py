@@ -87,6 +87,10 @@ T = {
     "pd_help": {"TR": "Bina ve muhteviyat için yangın sigorta bedeli. Betonarme binalar için birim metrekare fiyatı min. 18,600 TL, diğerleri için 12,600 TL.", "EN": "Fire insurance sum for building and contents. Min. unit square meter price for concrete buildings: 18,600 TL; others: 12,600 TL."},
     "bi": {"TR": "Kar Kaybı Bedeli (BI)", "EN": "Business Interruption Sum Insured (BI)"},
     "bi_help": {"TR": "Deprem sonrası ticari faaliyetin durması sonucu ciro azalması ve maliyet artışından kaynaklanan brüt kâr kaybı.", "EN": "Gross profit loss due to reduced turnover and increased costs from business interruption after an earthquake."},
+    "ymm": {"TR": "Yangın Mali Mesuliyet Bedeli (YMM)", "EN": "Third‑Party Liability Sum Insured"},
+    "ymm_help": {"TR": "Üçüncü şahıslara karşı mali sorumluluk teminatı bedeli.", "EN": "Sum insured for third-party liability coverage."},
+    "debris": {"TR": "Enkaz Kaldırma Bedeli", "EN": "Debris Removal Sum Insured"},
+    "debris_help": {"TR": "Deprem sonrası enkaz kaldırma masrafları için teminat bedeli.", "EN": "Sum insured for debris removal costs after an earthquake."},
     "koas": {"TR": "Koasürans Oranı", "EN": "Coinsurance Share"},
     "koas_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
     "deduct": {"TR": "Muafiyet Oranı (%)", "EN": "Deductible (%)"},
@@ -197,8 +201,8 @@ def calculate_duration_multiplier(months: int) -> float:
     extra_months = months - 36
     return base * (1 + 0.03 * extra_months)
 
-def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate):
-    total_sum_insured = (pd + bi) * fx_rate
+def calculate_fire_premium(building_type, risk_group, currency, pd, bi, ymm, debris, koas, deduct, fx_rate):
+    total_sum_insured = (pd + bi + ymm + debris) * fx_rate
     if total_sum_insured > 850_000_000:
         st.warning(tr("limit_warning"))
         total_sum_insured = 850_000_000
@@ -236,8 +240,8 @@ st.markdown(f'<h1 class="main-title">🏷️ {tr("title")}</h1>', unsafe_allow_h
 st.markdown(f'<h3 class="subtitle">{tr("subtitle")}</h3>', unsafe_allow_html=True)
 st.markdown('<p class="founders">Founders: Ubeydullah Ayvaz & Furkan Kaymaz</p>', unsafe_allow_html=True)
 
-# Imgur'dan alınan yeni doğrudan resim URL'si
-st.image("https://i.imgur.com/iA8pLRD.jpg", caption=tr("title"))
+# Using a publicly accessible URL for a similar image since the original file path is not accessible
+st.image("https://img.freepik.com/free-vector/online-insurance-concept-illustration_114360-6987.jpg", caption=tr("title"))
 
 # Main Content
 st.markdown('<h2 class="section-header">📌 ' + ("Hesaplama Yap" if lang == "TR" else "Perform Calculation") + '</h2>', unsafe_allow_html=True)
@@ -254,8 +258,13 @@ if calc_type == tr("calc_fire"):
         fx_rate = fx_input(currency, "fire")
     
     st.markdown("### " + ("Sigorta Bedelleri" if lang == "TR" else "Sums Insured"))
-    pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
-    bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
+    col3, col4 = st.columns(2)
+    with col3:
+        pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
+        bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
+    with col4:
+        ymm = st.number_input(tr("ymm"), min_value=0.0, value=0.0, step=1000.0, help=tr("ymm_help"))
+        debris = st.number_input(tr("debris"), min_value=0.0, value=0.0, step=1000.0, help=tr("debris_help"))
     
     st.markdown("### " + ("İndirim Oranları" if lang == "TR" else "Discount Rates"))
     col5, col6 = st.columns(2)
@@ -265,7 +274,7 @@ if calc_type == tr("calc_fire"):
         deduct = st.selectbox(tr("deduct"), list(muafiyet_indirimi.keys()), help=tr("deduct_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
-        premium, applied_rate = calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate)
+        premium, applied_rate = calculate_fire_premium(building_type, risk_group, currency, pd, bi, ymm, debris, koas, deduct, fx_rate)
         st.markdown(f'<div class="info-box">✅ <b>{tr("min_premium")}:</b> {premium:,.2f} TRY</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
 
