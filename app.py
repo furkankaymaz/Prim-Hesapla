@@ -426,7 +426,7 @@ else:
         premium, applied_rate = calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, currency, koas, deduct, fx_rate)
         if currency != "TRY":
             premium_converted = premium / fx_rate
-  st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(premium_converted, currency)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(premium_converted, currency)}</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(premium, "TRY")}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}%</div>', unsafe_allow_html=True)
