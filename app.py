@@ -112,7 +112,8 @@ T = {
     "cpe": {"TR": "Şantiye Tesisleri (CPE)", "EN": "Site Facilities (CPE)"},
     "cpe_help": {"TR": "Şantiye tesisleri için teminat bedeli. Aynı riziko adresinde bulunmalı.", "EN": "Sum insured for site facilities. Must be at the same risk address."},
     "total_premium": {"TR": "Toplam Minimum Prim", "EN": "Total Minimum Premium"},
-    "limit_warning": {"TR": "⚠️ Toplam sigorta bedeli 3.5 milyar TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Total sum insured exceeds the 3.5 billion TRY limit. Premium calculation will be based on this limit."},
+    "limit_warning_fire": {"TR": "⚠️ Yangın Sigortası: Toplam sigorta bedeli 3.5 milyar TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Fire Insurance: Total sum insured exceeds the 3.5 billion TRY limit. Premium calculation will be based on this limit."},
+    "limit_warning_car": {"TR": "⚠️ İnşaat & Montaj: Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Construction & Erection: Total sum insured exceeds the 850 million TRY limit. Premium calculation will be based on this limit."},
     "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
     "pd_premium": {"TR": "PD Primi", "EN": "PD Premium"},
     "bi_premium": {"TR": "BI Primi", "EN": "BI Premium"}
@@ -206,7 +207,7 @@ def calculate_duration_multiplier(months: int) -> float:
     return base * (1 + 0.03 * extra_months)
 
 def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate):
-    # Convert суммы to TRY
+    # Convert sums to TRY
     pd_sum_insured = pd * fx_rate
     bi_sum_insured = bi * fx_rate
     
@@ -216,26 +217,26 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, de
     # Limit for premium calculation
     LIMIT = 3_500_000_000  # 3.5 billion TRY
     
-    # Calculate PD premium with limit adjustment
-    if pd_sum_insured > LIMIT:
-        st.warning(tr("limit_warning"))
-        adjusted_rate_pd = (LIMIT / pd_sum_insured) * rate
-        pd_premium = (pd_sum_insured * adjusted_rate_pd) / 1000  # Per mille
-    else:
-        pd_premium = (pd_sum_insured * rate) / 1000  # Per mille
-    
-    # Apply koasürans and muafiyet discounts to PD premium only
+    # Calculate adjusted rate for PD (apply discounts first, then limit adjustment)
     koas_discount = koasurans_indirimi[koas]
     deduct_discount = muafiyet_indirimi[deduct]
-    pd_premium *= (1 - koas_discount) * (1 - deduct_discount)
+    adjusted_rate_pd = rate * (1 - koas_discount) * (1 - deduct_discount)
     
-    # Calculate BI premium with limit adjustment (no koasürans or muafiyet)
+    if pd_sum_insured > LIMIT:
+        st.warning(tr("limit_warning_fire"))
+        adjusted_rate_pd = round(adjusted_rate_pd * (LIMIT / pd_sum_insured), 6)
+    
+    # Calculate PD premium
+    pd_premium = (pd_sum_insured * adjusted_rate_pd) / 1000  # Per mille
+    
+    # Calculate adjusted rate for BI (no discounts, only limit adjustment)
+    adjusted_rate_bi = rate  # No koasürans or muafiyet for BI
     if bi_sum_insured > LIMIT:
-        st.warning(tr("limit_warning"))
-        adjusted_rate_bi = (LIMIT / bi_sum_insured) * rate
-        bi_premium = (bi_sum_insured * adjusted_rate_bi) / 1000  # Per mille
-    else:
-        bi_premium = (bi_sum_insured * rate) / 1000  # Per mille
+        st.warning(tr("limit_warning_fire"))
+        adjusted_rate_bi = round(adjusted_rate_bi * (LIMIT / bi_sum_insured), 6)
+    
+    # Calculate BI premium
+    bi_premium = (bi_sum_insured * adjusted_rate_bi) / 1000  # Per mille
     
     # Total premium
     total_premium = pd_premium + bi_premium
@@ -244,9 +245,10 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, de
 
 def calculate_car_ear_premium(risk_class, duration_months, project, cpm, cpe, currency, koas, deduct, fx_rate):
     total_sum_insured = (project + cpm + cpe) * fx_rate  # Convert to TRY for calculation
-    if total_sum_insured > 850_000_000:
-        st.warning(tr("limit_warning"))
-        total_sum_insured = 850_000_000
+    LIMIT = 850_000_000  # 850 million TRY for CAR/EAR
+    if total_sum_insured > LIMIT:
+        st.warning(tr("limit_warning_car"))
+        total_sum_insured = LIMIT
     
     base_rate = tarife_oranlari["Betonarme"][risk_class - 1]
     duration_multiplier = calculate_duration_multiplier(duration_months)
