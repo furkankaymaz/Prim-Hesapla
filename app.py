@@ -70,7 +70,7 @@ def get_tcmb_rate(ccy: str):
             if cur.attrib.get("CurrencyCode") == ccy:
                 txt = cur.findtext("BanknoteSelling") or cur.findtext("ForexSelling")
                 return float(txt.replace(",", ".")), root.attrib.get("Date")
-    except Exception:
+    except:
         return None, None
     return None, None
 
@@ -78,122 +78,111 @@ def get_tcmb_rate(ccy: str):
 def fx_input(ccy: str, key_prefix: str):
     if ccy == "TRY":
         return 1.0, ""
-    r, s, d = f"{key_prefix}_{ccy}_rate", f"{key_prefix}_{ccy}_src", f"{key_prefix}_{ccy}_dt"
-    if r not in st.session_state:
+    r_key = f"{key_prefix}_{ccy}_rate"
+    s_key = f"{key_prefix}_{ccy}_src"
+    d_key = f"{key_prefix}_{ccy}_dt"
+    if r_key not in st.session_state:
         rate, dt = get_tcmb_rate(ccy)
         if rate:
-            st.session_state[r] = rate; st.session_state[s] = "TCMB"; st.session_state[d] = dt
+            st.session_state[r_key] = rate; st.session_state[s_key] = "TCMB"; st.session_state[d_key] = dt
         else:
-            st.session_state[r] = 0.0; st.session_state[s] = "MANUEL"; st.session_state[d] = "-"
-    fx_rate = st.number_input(tr("manual_fx"), value=float(st.session_state[r]), step=0.0001, format="%.4f", key=r)
-    fx_info = f"💱 1 {ccy} = {fx_rate:.4f} TL ({st.session_state[s]}, {st.session_state[d]})"
+            st.session_state[r_key] = 0.0; st.session_state[s_key] = "MANUEL"; st.session_state[d_key] = "-"
+    fx_rate = st.number_input(tr("manual_fx"), value=float(st.session_state[r_key]), step=0.0001, format="%.4f", key=r_key)
+    fx_info = f"💱 1 {ccy} = {fx_rate:.4f} TL ({st.session_state[s_key]}, {st.session_state[d_key]})"
     st.info(fx_info)
     return fx_rate, fx_info
 
 # ------------------------------------------------------------
 # CONSTANT TABLES
 # ------------------------------------------------------------
-tarife_oranlari = {
-    "Betonarme": [3.13,2.63,2.38,1.94,1.38,1.06,0.75],
-    "Diğer":     [6.13,5.56,3.75,2.00,1.56,1.24,1.06]
-}
-car_tarife = {
-    "A": [1.56,1.31,1.19,0.98,0.69,0.54,0.38],
-    "B": [3.06,2.79,1.88,1.00,0.79,0.63,0.54]
-}
-sure_carpani = {i: sure_carpani_tablosu[i] for i in sure_carpani_tablosu}
-koasurans_indirimi = {k:v for k,v in koasurans_indirimi.items() if k in ["80/20","75/25","70/30","65/35","60/40"]}
-muafiyet_indirimi = {2:0,3:0.06,4:0.13,5:0.19,10:0.35}
+tarife_oranlari = {"Betonarme":[3.13,2.63,2.38,1.94,1.38,1.06,0.75],"Diğer":[6.13,5.56,3.75,2.00,1.56,1.24,1.06]}
+car_tarife = {"A":[1.56,1.31,1.19,0.98,0.69,0.54,0.38],"B":[3.06,2.79,1.88,1.00,0.79,0.63,0.54]}
+sure_carpani_tablosu = {6:0.70,7:0.75,8:0.80,9:0.85,10:0.90,11:0.95,12:1.00,13:1.05,14:1.10,15:1.15,16:1.20,17:1.25,18:1.30,19:1.35,20:1.40,21:1.45,22:1.50,23:1.55,24:1.60,25:1.65,26:1.70,27:1.74,28:1.78,29:1.82,30:1.86,31:1.90,32:1.94,33:1.98,34:2.02,35:2.06,36:2.10}
+koasurans_indirimi={"80/20":0.0,"75/25":0.0625,"70/30":0.125,"65/35":0.1875,"60/40":0.25}
+muafiyet_indirimi={2:0.0,3:0.06,4:0.13,5:0.19,10:0.35}
 
 # ------------------------------------------------------------
 # CALCULATION FUNCTIONS
 # ------------------------------------------------------------
 def calculate_duration(months):
-    if months <= 36:
-        return sure_carpani.get(months,1.0)
-    return sure_carpani[36]*(1+0.03*(months-36))
+    if months<=36: return sure_carpani_tablosu.get(months,1.0)
+    return sure_carpani_tablosu[36]*(1+0.03*(months-36))
 
-def calculate_fire_premium(building_type,risk,pd,bi,fx_rate):
-    pd_tl,bi_tl = pd*fx_rate, bi*fx_rate
-    rate=tarife_oranlari[building_type][risk-1];LIMIT=3_500_000_000
+def calculate_fire_premium(building_type,risk,pd,bi,fx):
+    pd_tl,bi_tl=pd*fx,bi*fx;rate=tarife_oranlari[building_type][risk-1];LIMIT=3_500_000_000
     if pd_tl>LIMIT: pd_tl=LIMIT; st.warning(tr("limit_warning_fire"))
     if bi_tl>LIMIT: bi_tl=LIMIT; st.warning(tr("limit_warning_fire"))
-    pd_pr,bi_pr = pd_tl*rate/1000, bi_tl*rate/1000
+    pd_pr,bi_pr=pd_tl*rate/1000,bi_tl*rate/1000
     return pd_pr,bi_pr,pd_pr+bi_pr,rate
 
-def calculate_car_prem(rc,rz,sd,ed,prj,cpm,cpe,ko,de,fx_rate):
-    # Duration
-    mo=(ed.year-sd.year)*12+(ed.month-sd.month)+(1 if ed.day>=15 else 0)
+def calculate_car_ear_premium(risk_class, risk_group, start, end, project, cpm, cpe, currency, koas, deduct, fx_rate):
+    mo=(end.year-start.year)*12+(end.month-start.month)+(1 if end.day>=15 else 0)
     dm=calculate_duration(mo)
-    # Base rate
-    br=car_tarife[rc][rz-1]
-    # Rate after discounts
-    rr=br*dm*(1-koasurans_indirimi[ko])*(1-muafiyet_indirimi[de])
+    br=car_tarife[risk_class][risk_group-1]
+    rr=br*dm*(1-koasurans_indirimi[koas])*(1-muafiyet_indirimi[deduct])
     LIMIT=840_000_000
     # CAR
-    car_tl=min(prj*fx_rate,LIMIT); car_pr=car_tl*rr/1000
-    # CPE
-    cpe_tl=min(cpe*fx_rate,LIMIT); cpe_pr=cpe_tl*(br*dm)/1000
+    car_tl=min(project*fx_rate,LIMIT);car_pr=car_tl*rr/1000
     # CPM
     cpm_tl=min(cpm*fx_rate,LIMIT)
-    cp_rate=2 if cpm_tl<=LIMIT else 2*LIMIT/cpm_tl
-    days=(ed-sd).days; cpm_pr=cpm_tl*cp_rate/1000*days/365
-    return car_pr,cpe_pr,cpm_pr,car_pr+cpe_pr+cpm_pr,rr
+    cpm_rate=2 if cpm_tl<=LIMIT else 2*LIMIT/cpm_tl
+    days=(end-start).days;cpm_pr=cpm_tl*cpm_rate/1000*days/365
+    # CPE
+    cpe_tl=min(cpe*fx_rate,LIMIT);cpe_pr=cpe_tl*(br*dm)/1000
+    total=car_pr+cpm_pr+cpe_pr
+    return car_pr,cpm_pr,cpe_pr,total,rr
 
 # ------------------------------------------------------------
 # UI RENDERING
 # ------------------------------------------------------------
-st.markdown(f'<h1 class="main-title">🏷️ {tr("title")}</h1>',unsafe_allow_html=True)
-st.markdown(f'<h3 class="subtitle">{tr("subtitle")}</h3>',unsafe_allow_html=True)
-st.markdown('<p class="founders">Founders: Ubeydullah Ayvaz & Furkan Kaymaz</p>',unsafe_allow_html=True)
+st.markdown(f'<h1 class="main-title">🏷️ {tr("title")}</h1>', unsafe_allow_html=True)
+st.markdown(f'<h3 class="subtitle">{tr("subtitle")}</h3>', unsafe_allow_html=True)
+st.markdown('<p class="founders">Founders: Ubeydullah Ayvaz & Furkan Kaymaz</p>', unsafe_allow_html=True)
 
-type_sel = st.selectbox(tr("select_calc"),[tr("calc_fire"),tr("calc_car")])
+calc_type=st.selectbox(tr("select_calc"),[tr("calc_fire"),tr("calc_car")])
 
-if type_sel==tr("calc_fire"):
-    st.markdown(f'<h3 class="section-header">{tr("fire_header")}</h3>',unsafe_allow_html=True)
-    col1,col2=st.columns(2)
-    with col1:
-        bld=st.selectbox(tr("building_type"),["Betonarme","Diğer"]) ; rg=st.selectbox(tr("risk_group"),range(1,8))
-        cur=st.selectbox(tr("currency"),["TRY","USD","EUR"])
-    with col2:
-        fx,info=fx_input(cur,"fire")
-        st.info(info)
-    pd=st.number_input(tr("pd"),min_value=0.0) ; bi=st.number_input(tr("bi"),min_value=0.0)
-    st.columns(2)[0].selectbox(tr("koas"),list(koasurans_indirimi.keys()))
-    st.columns(2)[1].selectbox(tr("deduct"),list(muafiyet_indirimi.keys()))
+if calc_type==tr("calc_fire"):
+    st.markdown(f'<h3 class="section-header">{tr("fire_header")}</h3>', unsafe_allow_html=True)
+    c1,c2=st.columns(2)
+    with c1:
+        bld=st.selectbox(tr("building_type"),["Betonarme","Diğer"])
+        rg=st.selectbox(tr("risk_group"),range(1,8))
+        cur=st.selectbox(tr("currency"),["TRY","USD","EUR"] )
+    with c2:
+        fx,info=fx_input(cur,"fire");st.info(info)
+    pd=st.number_input(tr("pd"),min_value=0.0);bi=st.number_input(tr("bi"),min_value=0.0)
+    ko=st.selectbox(tr("koas"),list(koasurans_indirimi.keys()));ded=st.selectbox(tr("deduct"),list(muafiyet_indirimi.keys()))
     if st.button(tr("btn_calc")):
         pd_pr,bi_pr,tot_pr,ar=calculate_fire_premium(bld,rg,pd,bi,fx)
         if cur!="TRY":
-            st.info(f"{tr('pd_premium')}: {pd_pr/fx:.2f} {cur}")
-            st.info(f"{tr('bi_premium')}: {bi_pr/fx:.2f} {cur}")
-            st.info(f"{tr('total_premium')}: {tot_pr/fx:.2f} {cur}")
+            st.info(f": {pd_pr/fx:.2f} {cur}");st.info(f": {bi_pr/fx:.2f} {cur}");st.info(f": {tot_pr/fx:.2f} {cur}")
         else:
-            st.info(f"{tr('pd_premium')}: {pd_pr:,.2f} TL")
-            st.info(f"{tr('bi_premium')}: {bi_pr:,.2f} TL")
-            st.info(f"{tr('total_premium')}: {tot_pr:,.2f} TL")
+            st.info(f": {pd_pr:,.2f} TL");st.info(f": {bi_pr:,.2f} TL");st.info(f": {tot_pr:,.2f} TL")
         st.info(f"📊 {tr('applied_rate')}: {ar:.2f}‰")
 else:
-    st.markdown(f'<h3 class="section-header">{tr("car_header")}</h3>',unsafe_allow_html=True)
+    st.markdown(f'<h3 class="section-header">{tr("car_header")}</h3>', unsafe_allow_html=True)
     c1,c2=st.columns(2)
     with c1:
-        rc=st.selectbox(tr("risk_class"),["A","B"]) ; rz=st.selectbox(tr("risk_group"),range(1,8))
-        sd=st.date_input(tr("start")) ; ed=st.date_input(tr("end"))
+        risk_type=st.selectbox(tr("risk_class"),["A","B"],help=tr("risk_class_help"))
+        deprem_zone=st.selectbox(tr("risk_group"),range(1,8),help=tr("risk_group_help"))
+        start_date=st.date_input(tr("start"));end_date=st.date_input(tr("end"))
     with c2:
-        cur=st.selectbox(tr("currency"),["TRY","USD","EUR"])
-        fx,info=fx_input(cur,"car") ; st.info(info)
-    prj=st.number_input(tr("project"),min_value=0.0) ; cpm=st.number_input(tr("cpm"),min_value=0.0) ; cpe=st.number_input(tr("cpe"),min_value=0.0)
+        cur=st.selectbox(tr("currency"),["TRY","USD","EUR"]);fx,info=fx_input(cur,"car");st.info(info)
+    project=st.number_input(tr("project"),min_value=0.0)
+    cpm=st.number_input(tr("cpm"),min_value=0.0)
+    cpe=st.number_input(tr("cpe"),min_value=0.0)
     ko=st.selectbox(tr("coins"),list(koasurans_indirimi.keys()))
     de=st.selectbox(tr("ded"),list(muafiyet_indirimi.keys()))
     if st.button(tr("btn_calc")):
-        car_pr,cpe_pr,cpm_pr,tot_pr,ar=calculate_car_prem(rc,rz,sd,ed,prj,cpm,cpe,ko,de,fx)
+        car_pr,cpm_pr,cpe_pr,tot_pr,ar=calculate_car_ear_premium(risk_type,deprem_zone,start_date,end_date,project,cpm,cpe,cur,ko,de,fx)
         if cur!="TRY":
-            st.info(f"{tr('car_premium')}: {car_pr/fx:.2f} {cur}")
-            st.info(f"{tr('cpe_premium')}: {cpe_pr/fx:.2f} {cur}")
-            st.info(f"{tr('cpm_premium')}: {cpm_pr/fx:.2f} {cur}")
-            st.info(f"{tr('total_premium')}: {tot_pr/fx:.2f} {cur}")
+            st.info(f"✅ {tr('car_premium')}: {car_pr/fx:.2f} {cur}")
+            st.info(f"✅ {tr('cpm_premium')}: {cpm_pr/fx:.2f} {cur}")
+            st.info(f"✅ {tr('cpe_premium')}: {cpe_pr/fx:.2f} {cur}")
+            st.info(f"✅ {tr('total_premium')}: {tot_pr/fx:.2f} {cur}")
         else:
-            st.info(f"{tr('car_premium')}: {car_pr:,.2f} TL")
-            st.info(f"{tr('cpe_premium')}: {cpe_pr:,.2f} TL")
-            st.info(f"{tr('cpm_premium')}: {cpm_pr:,.2f} TL")
-            st.info(f"{tr('total_premium')}: {tot_pr:,.2f} TL")
+            st.info(f"✅ {tr('car_premium')}: {car_pr:,.2f} TL")
+            st.info(f"✅ {tr('cpm_premium')}: {cpm_pr:,.2f} TL")
+            st.info(f"✅ {tr('cpe_premium')}: {cpe_pr:,.2f} TL")
+            st.info(f"✅ {tr('total_premium')}: {tot_pr:,.2f} TL")
         st.info(f"📊 {tr('applied_rate')}: {ar:.2f}‰")
