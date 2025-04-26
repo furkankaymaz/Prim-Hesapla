@@ -81,7 +81,7 @@ T = {
     "building_type_help": {"TR": "Betonarme: Çelik veya betonarme taşıyıcı karkas bulunan yapılar. Diğer: Bu gruba girmeyen yapılar.", "EN": "Concrete: Structures with steel or reinforced concrete framework. Other: Structures not in this group."},
     "risk_group": {"TR": "Deprem Risk Grubu (1=En Yüksek Risk)", "EN": "Earthquake Risk Zone (1=Highest)"},
     "risk_group_help": {"TR": "Deprem risk grupları, Doğal Afet Sigortaları Kurumu tarafından belirlenir. 1. Grup en yüksek risktir.", "EN": "Earthquake risk zones are determined by the Natural Disaster Insurance Institution. Zone 1 is the highest risk."},
-    "risk_group_type": {"TR": "Risk Grubu Türü", "EN": "Risk Group Type"},
+    "risk_group_type": {"TR": "Risk Sınıfı Türü", "EN": "Risk Group Type"},
     "risk_group_type_help": {"TR": "A: Bina inşaatları, dekorasyon. B: Tünel, köprü, enerji santralleri gibi daha riskli projeler.", "EN": "A: Building construction, decoration. B: Tunnels, bridges, power plants, and other high-risk projects."},
     "currency": {"TR": "Para Birimi", "EN": "Currency"},
     "manual_fx": {"TR": "Kuru manuel güncelleyebilirsiniz", "EN": "You can manually update the exchange rate"},
@@ -312,11 +312,19 @@ if calc_type == tr("calc_fire"):
         st.markdown(f"- **{tr('applied_rate')}**: {applied_rate:.2f} ‰")
         st.markdown(f"*{tr('min_premium_info')}*")
 
-# CAR/EAR Insurance Form (updated)
+# CAR/EAR Insurance Form (updated UI for risk group type)
 else:
     st.markdown(f'<div class="section-header">{tr("car_header")}</div>', unsafe_allow_html=True)
     
-    risk_group_type = st.selectbox(tr("risk_group_type"), ["RiskGrubuA", "RiskGrubuB"], help=tr("risk_groupAngle_type_help"))
+    # Risk Group Type (A or B)
+    risk_group_type = st.selectbox(
+        tr("risk_group_type"),
+        ["RiskGrubuA", "RiskGrubuB"],
+        format_func=lambda x: "A" if x == "RiskGrubuA" else "B",
+        help=tr("risk_group_type_help")
+    )
+    
+    # Earthquake Risk Zone (1-7)
     risk_class = st.selectbox(tr("risk_class"), [1, 2, 3, 4, 5, 6, 7], help=tr("risk_class_help"))
     
     col1, col2 = st.columns(2)
