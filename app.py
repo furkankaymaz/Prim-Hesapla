@@ -57,6 +57,21 @@ st.markdown("""
         border-radius: 10px;
         margin-bottom: 1em;
     }
+    .enter-message-tr {
+        font-size: 0.9em;
+        font-weight: bold;
+        color: #D32F2F;
+        background-color: #FFEBEE;
+        padding: 0.3em 0.5em;
+        border-radius: 5px;
+        margin-top: 0.2em;
+    }
+    .enter-message-en {
+        font-size: 0.9em;
+        font-weight: bold;
+        color: #1976D2;
+        margin-top: 0.2em;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -99,7 +114,7 @@ T = {
     "start": {"TR": "Poliçe Başlangıcı", "EN": "Policy Start"},
     "end": {"TR": "Poliçe Bitişi", "EN": "Policy End"},
     "duration": {"TR": "Süre", "EN": "Duration"},
-    "months": {"TR": "ay", "EN": "months"},
+    "months": {"TR W": "ay", "EN": "months"},
     "duration_help": {"TR": "Sigorta süresi. 36 aydan uzun projelerde her ay için %3 eklenir.", "EN": "Policy duration. For projects over 36 months, 3% is added per month."},
     "coins": {"TR": "Koasürans", "EN": "Coinsurance"},
     "coins_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
@@ -113,7 +128,8 @@ T = {
     "cpe_help": {"TR": "Şantiye tesisleri için teminat bedeli. Aynı riziko adresinde bulunmalı.", "EN": "Sum insured for site facilities. Must be at the same risk address."},
     "total_premium": {"TR": "Toplam Minimum Prim", "EN": "Total Minimum Premium"},
     "limit_warning": {"TR": "⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Total sum insured exceeds the 850 million TRY limit. Premium calculation will be based on this limit."},
-    "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"}
+    "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
+    "enter_message": {"TR": "Uygulamak için lütfen Enter tuşuna basın", "EN": "Please Enter to apply"}
 }
 
 def tr(key: str) -> str:
@@ -264,10 +280,18 @@ if calc_type == tr("calc_fire"):
         st.info(fx_info)
     
     pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
+    if lang == "TR":
+        st.markdown(f'<div class="enter-message-tr">{tr("enter_message")}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="enter-message-en">{tr("enter_message")}</div>', unsafe_allow_html=True)
     if pd > 0:
         st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
     
     bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
+    if lang == "TR":
+        st.markdown(f'<div class="enter-message-tr">{tr("enter_message")}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="enter-message-en">{tr("enter_message")}</div>', unsafe_allow_html=True)
     if bi > 0:
         st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
     
@@ -307,14 +331,26 @@ else:
     col3, col4, col5 = st.columns(3)
     with col3:
         project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0, help=tr("project_help"))
+        if lang == "TR":
+            st.markdown(f'<div class="enter-message-tr">{tr("enter_message")}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="enter-message-en">{tr("enter_message")}</div>', unsafe_allow_html=True)
         if project > 0:
             st.write(f"{tr('entered_value')}: {format_number(project, currency)}")
     with col4:
         cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpm_help"))
+        if lang == "TR":
+            st.markdown(f'<div class="enter-message-tr">{tr("enter_message")}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="enter-message-en">{tr("enter_message")}</div>', unsafe_allow_html=True)
         if cpm > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpm, currency)}")
     with col5:
         cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpe_help"))
+        if lang == "TR":
+            st.markdown(f'<div class="enter-message-tr">{tr("enter_message")}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="enter-message-en">{tr("enter_message")}</div>', unsafe_allow_html=True)
         if cpe > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpe, currency)}")
     
