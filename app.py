@@ -57,12 +57,6 @@ st.markdown("""
         border-radius: 10px;
         margin-bottom: 1em;
     }
-    .enter-message {
-        font-size: 0.9em;
-        font-weight: bold;
-        color: #000000;
-        margin-left: 0.5em;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -119,8 +113,7 @@ T = {
     "cpe_help": {"TR": "Şantiye tesisleri için teminat bedeli. Aynı riziko adresinde bulunmalı.", "EN": "Sum insured for site facilities. Must be at the same risk address."},
     "total_premium": {"TR": "Toplam Minimum Prim", "EN": "Total Minimum Premium"},
     "limit_warning": {"TR": "⚠️ Toplam sigorta bedeli 850 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Total sum insured exceeds the 850 million TRY limit. Premium calculation will be based on this limit."},
-    "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
-    "enter_message": {"TR": "Uygulamak için lütfen Enter tuşuna basın", "EN": "Please Enter to apply"}
+    "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"}
 }
 
 def tr(key: str) -> str:
@@ -270,21 +263,11 @@ if calc_type == tr("calc_fire"):
     if currency != "TRY":
         st.info(fx_info)
     
-    # PD Input with message on the right
-    col_pd1, col_pd2 = st.columns([3, 1])
-    with col_pd1:
-        pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
-    with col_pd2:
-        st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
+    pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
     if pd > 0:
         st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
     
-    # BI Input with message on the right
-    col_bi1, col_bi2 = st.columns([3, 1])
-    with col_bi1:
-        bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
-    with col_bi2:
-        st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
+    bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
     if bi > 0:
         st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
     
@@ -323,30 +306,15 @@ else:
     
     col3, col4, col5 = st.columns(3)
     with col3:
-        # Project Input with message on the right
-        col_proj1, col_proj2 = st.columns([3, 1])
-        with col_proj1:
-            project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0, help=tr("project_help"))
-        with col_proj2:
-            st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
+        project = st.number_input(tr("project"), min_value=0.0, value=0.0, step=1000.0, help=tr("project_help"))
         if project > 0:
             st.write(f"{tr('entered_value')}: {format_number(project, currency)}")
     with col4:
-        # CPM Input with message on the right
-        col_cpm1, col_cpm2 = st.columns([3, 1])
-        with col_cpm1:
-            cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpm_help"))
-        with col_cpm2:
-            st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
+        cpm = st.number_input(tr("cpm"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpm_help"))
         if cpm > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpm, currency)}")
     with col5:
-        # CPE Input with message on the right
-        col_cpe1, col_cpe2 = st.columns([3, 1])
-        with col_cpe1:
-            cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpe_help"))
-        with col_cpe2:
-            st.markdown(f'<div class="enter-message">{tr("enter_message")}</div>', unsafe_allow_html=True)
+        cpe = st.number_input(tr("cpe"), min_value=0.0, value=0.0, step=1000.0, help=tr("cpe_help"))
         if cpe > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpe, currency)}")
     
