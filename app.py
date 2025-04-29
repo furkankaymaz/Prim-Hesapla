@@ -117,7 +117,8 @@ T = {
     "car_premium": {"TR": "CAR Primi", "EN": "CAR Premium"},
     "cpm_premium": {"TR": "CPM Primi", "EN": "CPM Premium"},
     "cpe_premium": {"TR": "CPE Primi", "EN": "CPE Premium"},
-    "limit_warning_fire": {"TR": "⚠️ Yangın Sigortası: Toplam sigorta bedeli 3.5 milyar TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Fire Insurance: Total sum insured exceeds the 3.5 billion TRY limit. Premium calculation will be based on this limit."},
+    "limit_warning_fire_pd": {"TR": "⚠️ Yangın Sigorta Bedeli: 3.5 milyar TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Property Damage: Sum insured exceeds the 3.5 billion TRY limit. Premium calculation will be based on this limit."},
+    "limit_warning_fire_bi": {"TR": "⚠️ Kar Kaybı Bedeli: 3.5 milyar TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Business Interruption: Sum insured exceeds the 3.5 billion TRY limit. Premium calculation will be based on this limit."},
     "limit_warning_car": {"TR": "⚠️ İnşaat & Montaj: Toplam sigorta bedeli 840 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Construction & Erection: Total sum insured exceeds the 840 million TRY limit. Premium calculation will be based on this limit."},
     "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
     "pd_premium": {"TR": "PD Primi", "EN": "PD Premium"},
@@ -164,16 +165,46 @@ def fx_input(ccy: str, key_prefix: str) -> float:
         return 1.0, ""
     r_key = f"{key_prefix}_{ccy}_rate"
     s_key = f"{key_prefix}_{ccy}_src"
-    d_key = f"{key_prefix}_{ccy}_dt"
-    if r_key not in st.session_state:
-        rate, dt = get_tcmb_rate(ccy)
-        if rate is None:
-            st.session_state.update({r_key: 0.0, s_key: "MANUEL", d_key: "-"})
+    tcmb_rate_key = f"{key_prefix}_{ccy}_tcmb_rate"
+    tcmb_date_key = f"{key_prefix}_{ccy}_tcmb_date"
+    
+    # İlk yüklemede TCMB kuru alınıyor ve saklanıyor
+    if tcmb_rate_key not in st.session_state:
+        tcmb_rate, tcmb_date = get_tcmb_rate(ccy)
+        if tcmb_rate is None:
+            st.session_state.update({
+                tcmb_rate_key: 0.0,
+                tcmb_date_key: "-",
+                r_key: 0.0,
+                s_key: "MANUEL"
+            })
         else:
-            st.session_state.update({r_key: rate, s_key: "TCMB", d_key: dt})
-    st.info(f"💱 1 {ccy} = {st.session_state[r_key]:,.4f} TL ({st.session_state[s_key]}, {st.session_state[d_key]})")
-    st.session_state[r_key] = st.number_input(tr("manual_fx"), value=float(st.session_state[r_key]), step=0.0001, format="%.4f", key=f"{key_prefix}_{ccy}_manual")
-    return st.session_state[r_key], f"💱 1 {ccy} = {st.session_state[r_key]:,.4f} TL ({st.session_state[s_key]}, {st.session_state[d_key]})"
+            st.session_state.update({
+                tcmb_rate_key: tcmb_rate,
+                tcmb_date_key: tcmb_date,
+                r_key: tcmb_rate,
+                s_key: "TCMB"
+            })
+    
+    # Manuel kur girişi
+    default_rate = float(st.session_state[r_key])
+    new_rate = st.number_input(tr("manual_fx"), value=default_rate, step=0.0001, format="%.4f", key=f"{key_prefix}_{ccy}_manual")
+    
+    # Eğer kullanıcı kuru değiştirdiyse, kaynağı MANUEL yap
+    if new_rate != st.session_state.get(tcmb_rate_key, 0.0):
+        st.session_state[s_key] = "MANUEL"
+    else:
+        st.session_state[s_key] = "TCMB"
+    
+    st.session_state[r_key] = new_rate
+    
+    # Info kutusunda hem TCMB kuru hem de kullanılan kur gösteriliyor
+    info_message = (
+        f"💱 TCMB Kuru: 1 {ccy} = {st.session_state[tcmb_rate_key]:,.4f} TL (TCMB, {st.session_state[tcmb_date_key]}) | "
+        f"Kullanılan Kur: 1 {ccy} = {st.session_state[r_key]:,.4f} TL ({st.session_state[s_key]})"
+    )
+    st.info(info_message)
+    return st.session_state[r_key], info_message
 
 # Helper function to format numbers with thousand separators
 def format_number(value: float, currency: str) -> str:
@@ -242,7 +273,7 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, de
     adjusted_rate_pd = rate * (1 - koas_discount) * (1 - deduct_discount)
     
     if pd_sum_insured > LIMIT:
-        st.warning(tr("limit_warning_fire"))
+        st.warning(tr("limit_warning_fire_pd"))
         adjusted_rate_pd = round(adjusted_rate_pd * (LIMIT / pd_sum_insured), 6)
     
     # Calculate PD premium
@@ -251,7 +282,7 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, de
     # Calculate adjusted rate for BI (no discounts, only limit adjustment)
     adjusted_rate_bi = rate  # No koasürans or muafiyet for BI
     if bi_sum_insured > LIMIT:
-        st.warning(tr("limit_warning_fire"))
+        st.warning(tr("limit_warning_fire_bi"))
         adjusted_rate_bi = round(adjusted_rate_bi * (LIMIT / bi_sum_insured), 6)
     
     # Calculate BI premium
@@ -352,7 +383,7 @@ if calc_type == tr("calc_fire"):
     with col5:
         koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
     with col6:
-        deduct = st.selectbox(tr("deduct"), list(muafiyet_indirimi.keys()), help=tr("deduct_help"))
+        deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), help=tr("deduct_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
         pd_premium, bi_premium, total_premium, applied_rate = calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate)
@@ -413,7 +444,7 @@ else:
     with col6:
         koas = st.selectbox(tr("coins"), list(koasurans_indirimi_car.keys()), help=tr("coins_help"))
     with col7:
-        deduct = st.selectbox(tr("ded"), list(muafiyet_indirimi_car.keys()), help=tr("ded_help"))
+        deduct = st.selectbox(tr("ded"), sorted(list(muafiyet_indirimi_car.keys()), reverse=True), help=tr("ded_help"))
     
     if st.button(tr("btn_calc"), key="car_calc"):
         car_premium, cpm_premium, cpe_premium, total_premium, applied_rate = calculate_car_ear_premium(
