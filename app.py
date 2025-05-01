@@ -322,11 +322,12 @@ def calculate_car_ear_premium(risk_group_type, risk_class, start_date, end_date,
     
     # CPM Premium
     cpm_sum_insured = cpm * fx_rate
-    cpm_rate = 2.0  # Default rate is 2 ‰
+    cpm_rate = 1.25  # Excel'deki oran (binde 1,25)
+    duration_multiplier = calculate_duration_multiplier(duration_months)  # Ay bazlı süre çarpanı (1,05)
     if cpm_sum_insured > LIMIT:
         st.warning(tr("limit_warning_car"))
         cpm_rate *= (LIMIT / cpm_sum_insured)
-    cpm_premium = (cpm_sum_insured * cpm_rate / 1000) * duration_factor
+    cpm_premium = (cpm_sum_insured * cpm_rate / 1000) * duration_multiplier
     
     # CPE Premium
     cpe_sum_insured = cpe * fx_rate
