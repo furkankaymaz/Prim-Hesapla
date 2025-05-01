@@ -89,6 +89,14 @@ T = {
     "pd_help": {"TR": "Bina ve muhteviyat için yangın sigorta bedeli. Betonarme binalar için birim metrekare fiyatı min. 18,600 TL, diğerleri için 12,600 TL.", "EN": "Fire insurance sum for building and contents. Min. unit square meter price for concrete buildings: 18,600 TL; others: 12,600 TL."},
     "bi": {"TR": "Kar Kaybı Bedeli (BI)", "EN": "Business Interruption Sum Insured (BI)"},
     "bi_help": {"TR": "Deprem sonrası ticari faaliyetin durması sonucu ciro azalması ve maliyet artışından kaynaklanan brüt kâr kaybı.", "EN": "Gross profit loss due to reduced turnover and increased costs from business interruption after an earthquake."},
+    "ec": {"TR": "Elektronik Cihaz Sigorta Bedeli (EC)", "EN": "Electronic Device Sum Insured (EC)"},
+    "ec_help": {"TR": "Elektronik cihazlar için sigorta bedeli.", "EN": "Sum insured for electronic devices."},
+    "ec_mobile": {"TR": "Elektronik Cihaz Seyyar/Taşınabilir mi?", "EN": "Is the Electronic Device Mobile/Portable?"},
+    "ec_mobile_help": {"TR": "Eğer cihaz seyyar veya taşınabilir ise işaretleyin.", "EN": "Check if the device is mobile or portable."},
+    "mk": {"TR": "Makine Kırılması Sigorta Bedeli (MK)", "EN": "Machinery Breakdown Sum Insured (MK)"},
+    "mk_help": {"TR": "Makine kırılması için sigorta bedeli.", "EN": "Sum insured for machinery breakdown."},
+    "mk_mobile": {"TR": "Makine Seyyar/Taşınabilir mi?", "EN": "Is the Machinery Mobile/Portable?"},
+    "mk_mobile_help": {"TR": "Eğer makine seyyar veya taşınabilir ise işaretleyin.", "EN": "Check if the machinery is mobile or portable."},
     "koas": {"TR": "Koasürans Oranı", "EN": "Coinsurance Share"},
     "koas_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
     "deduct": {"TR": "Muafiyet Oranı (%)", "EN": "Deductible (%)"},
@@ -117,8 +125,12 @@ T = {
     "car_premium": {"TR": "CAR Primi", "EN": "CAR Premium"},
     "cpm_premium": {"TR": "CPM Primi", "EN": "CPM Premium"},
     "cpe_premium": {"TR": "CPE Primi", "EN": "CPE Premium"},
+    "ec_premium": {"TR": "Elektronik Cihaz Primi", "EN": "Electronic Device Premium"},
+    "mk_premium": {"TR": "Makine Kırılması Primi", "EN": "Machinery Breakdown Premium"},
     "limit_warning_fire_pd": {"TR": "⚠️ Yangın Sigorta Bedeli: 3.5 milyar TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Property Damage: Sum insured exceeds the 3.5 billion TRY limit. Premium calculation will be based on this limit."},
     "limit_warning_fire_bi": {"TR": "⚠️ Kar Kaybı Bedeli: 3.5 milyar TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Business Interruption: Sum insured exceeds the 3.5 billion TRY limit. Premium calculation will be based on this limit."},
+    "limit_warning_ec": {"TR": "⚠️ Elektronik Cihaz: Sigorta bedeli 840 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Electronic Device: Sum insured exceeds the 840 million TRY limit. Premium calculation will be based on this limit."},
+    "limit_warning_mk": {"TR": "⚠️ Makine Kırılması: Sigorta bedeli 840 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Machinery Breakdown: Sum insured exceeds the 840 million TRY limit. Premium calculation will be based on this limit."},
     "limit_warning_car": {"TR": "⚠️ İnşaat & Montaj: Toplam sigorta bedeli 840 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Construction & Erection: Total sum insured exceeds the 840 million TRY limit. Premium calculation will be based on this limit."},
     "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
     "pd_premium": {"TR": "PD Primi", "EN": "PD Premium"},
@@ -223,13 +235,14 @@ tarife_oranlari = {
 koasurans_indirimi = {
     "80/20": 0.0, "75/25": 0.0625, "70/30": 0.125, "65/35": 0.1875,
     "60/40": 0.25, "55/45": 0.3125, "50/50": 0.375, "45/55": 0.4375,
-    "40/60": 0.25, "30/70": 0.125, "25/75": 0.0625,
+    "40/60": 0.50,  # Updated to reflect maximum 50% discount for 40/60
+    "30/70": 0.125, "25/75": 0.0625,
     "90/10": -0.125, "100/0": -0.25
 }
 koasurans_indirimi_car = {
     "80/20": 0.0, "75/25": 0.0625, "70/30": 0.125, "65/35": 0.1875,
     "60/40": 0.25, "55/45": 0.3125, "50/50": 0.375, "45/55": 0.4375,
-    "40/60": 0.25
+    "40/60": 0.50  # Updated to reflect maximum 50% discount for 40/60
 }
 muafiyet_indirimi = {
     2: 0.0, 3: 0.06, 4: 0.13, 5: 0.19, 10: 0.35,
@@ -254,65 +267,77 @@ def calculate_duration_multiplier(months: int) -> float:
         return sure_carpani_tablosu.get(months, 1.0)
     base = sure_carpani_tablosu[36]
     extra_months = months - 36
-    return base + (0.03 * extra_months)  # Çarpma yerine toplama (Güncellenmiş)
+    return base + (0.03 * extra_months)
 
 def calculate_months_difference(start_date, end_date):
-    # Yıl farkı * 12 + ay farkı
     months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-    
-    # Toplam gün farkı
     total_days = (end_date - start_date).days
-    
-    # Tahmini gün farkı: (yıl farkı * 365) + (ay farkı * 30)
     year_diff = end_date.year - start_date.year
     month_diff = end_date.month - start_date.month
     estimated_days = (year_diff * 365) + (month_diff * 30)
-    
-    # Kalan gün farkı
     remaining_days = total_days - estimated_days
-    
-    # Eğer kalan gün farkı 15 veya daha fazlaysa, 1 ay ekle
     if remaining_days >= 15:
         months += 1
-        
     return months
 
-def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate):
+def calculate_fire_premium(building_type, risk_group, currency, pd, bi, ec, ec_mobile, mk, mk_mobile, koas, deduct, fx_rate):
     # Convert sums to TRY
     pd_sum_insured = pd * fx_rate
     bi_sum_insured = bi * fx_rate
+    ec_sum_insured = ec * fx_rate
+    mk_sum_insured = mk * fx_rate
     
     # Get base tariff rate (per mille)
     rate = tarife_oranlari[building_type][risk_group - 1]
     
-    # Limit for premium calculation
-    LIMIT = 3_500_000_000  # 3.5 billion TRY
+    # Limits
+    LIMIT_FIRE = 3_500_000_000  # Fire limit (PD and BI)
+    LIMIT_EC_MK = 840_000_000   # EC and MK limit
     
     # Calculate adjusted rate for PD (apply discounts first, then limit adjustment)
     koas_discount = koasurans_indirimi[koas]
     deduct_discount = muafiyet_indirimi[deduct]
     adjusted_rate_pd = rate * (1 - koas_discount) * (1 - deduct_discount)
-    
-    if pd_sum_insured > LIMIT:
+    if pd_sum_insured > LIMIT_FIRE:
         st.warning(tr("limit_warning_fire_pd"))
-        adjusted_rate_pd = round(adjusted_rate_pd * (LIMIT / pd_sum_insured), 6)
-    
-    # Calculate PD premium
+        adjusted_rate_pd = round(adjusted_rate_pd * (LIMIT_FIRE / pd_sum_insured), 6)
     pd_premium = (pd_sum_insured * adjusted_rate_pd) / 1000  # Per mille
     
     # Calculate adjusted rate for BI (no discounts, only limit adjustment)
     adjusted_rate_bi = rate  # No koasürans or muafiyet for BI
-    if bi_sum_insured > LIMIT:
+    if bi_sum_insured > LIMIT_FIRE:
         st.warning(tr("limit_warning_fire_bi"))
-        adjusted_rate_bi = round(adjusted_rate_bi * (LIMIT / bi_sum_insured), 6)
-    
-    # Calculate BI premium
+        adjusted_rate_bi = round(adjusted_rate_bi * (LIMIT_FIRE / bi_sum_insured), 6)
     bi_premium = (bi_sum_insured * adjusted_rate_bi) / 1000  # Per mille
     
-    # Total premium
-    total_premium = pd_premium + bi_premium
+    # Calculate EC premium
+    ec_premium = 0.0
+    if ec > 0:  # Only calculate if EC value is provided
+        if ec_mobile:
+            ec_rate = 2.00  # Fixed rate for mobile EC devices
+        else:
+            ec_rate = rate * (1 - koas_discount) * (1 - deduct_discount)  # Use building type and risk group rate
+        if ec_sum_insured > LIMIT_EC_MK:
+            st.warning(tr("limit_warning_ec"))
+            ec_rate = round(ec_rate * (LIMIT_EC_MK / ec_sum_insured), 6)
+        ec_premium = (ec_sum_insured * ec_rate) / 1000
     
-    return pd_premium, bi_premium, total_premium, rate
+    # Calculate MK premium
+    mk_premium = 0.0
+    if mk > 0:  # Only calculate if MK value is provided
+        if mk_mobile:
+            mk_rate = 2.00  # Fixed rate for mobile MK equipment
+        else:
+            mk_rate = rate * (1 - koas_discount) * (1 - deduct_discount)  # Use building type and risk group rate
+        if mk_sum_insured > LIMIT_EC_MK:
+            st.warning(tr("limit_warning_mk"))
+            mk_rate = round(mk_rate * (LIMIT_EC_MK / mk_sum_insured), 6)
+        mk_premium = (mk_sum_insured * mk_rate) / 1000
+    
+    # Total premium
+    total_premium = pd_premium + bi_premium + ec_premium + mk_premium
+    
+    return pd_premium, bi_premium, ec_premium, mk_premium, total_premium, rate
 
 def calculate_car_ear_premium(risk_group_type, risk_class, start_date, end_date, project, cpm, cpe, currency, koas, deduct, fx_rate):
     # Calculate duration in months using Excel-like logic
@@ -385,13 +410,23 @@ if calc_type == tr("calc_fire"):
     if currency != "TRY":
         st.info(fx_info)
     
-    pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
-    if pd > 0:
-        st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
-    
-    bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
-    if bi > 0:
-        st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
+    col3, col4 = st.columns(2)
+    with col3:
+        pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
+        if pd > 0:
+            st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
+        bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
+        if bi > 0:
+            st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
+    with col4:
+        ec = st.number_input(tr("ec"), min_value=0.0, value=0.0, step=1000.0, help=tr("ec_help"))
+        if ec > 0:
+            st.write(f"{tr('entered_value')}: {format_number(ec, currency)}")
+        ec_mobile = st.checkbox(tr("ec_mobile"), help=tr("ec_mobile_help"))
+        mk = st.number_input(tr("mk"), min_value=0.0, value=0.0, step=1000.0, help=tr("mk_help"))
+        if mk > 0:
+            st.write(f"{tr('entered_value')}: {format_number(mk, currency)}")
+        mk_mobile = st.checkbox(tr("mk_mobile"), help=tr("mk_mobile_help"))
     
     st.markdown("### " + ("İndirim Oranları" if lang == "TR" else "Discount Rates"))
     col5, col6 = st.columns(2)
@@ -401,17 +436,29 @@ if calc_type == tr("calc_fire"):
         deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), help=tr("deduct_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
-        pd_premium, bi_premium, total_premium, applied_rate = calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate)
+        pd_premium, bi_premium, ec_premium, mk_premium, total_premium, applied_rate = calculate_fire_premium(
+            building_type, risk_group, currency, pd, bi, ec, ec_mobile, mk, mk_mobile, koas, deduct, fx_rate
+        )
         if currency != "TRY":
             pd_premium_converted = pd_premium / fx_rate
             bi_premium_converted = bi_premium / fx_rate
+            ec_premium_converted = ec_premium / fx_rate
+            mk_premium_converted = mk_premium / fx_rate
             total_premium_converted = total_premium / fx_rate
             st.markdown(f'<div class="info-box">✅ <b>{tr("pd_premium")}:</b> {format_number(pd_premium_converted, currency)}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="info-box">✅ <b>{tr("bi_premium")}:</b> {format_number(bi_premium_converted, currency)}</div>', unsafe_allow_html=True)
+            if ec > 0:
+                st.markdown(f'<div class="info-box">✅ <b>{tr("ec_premium")}:</b> {format_number(ec_premium_converted, currency)}</div>', unsafe_allow_html=True)
+            if mk > 0:
+                st.markdown(f'<div class="info-box">✅ <b>{tr("mk_premium")}:</b> {format_number(mk_premium_converted, currency)}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(total_premium_converted, currency)}</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="info-box">✅ <b>{tr("pd_premium")}:</b> {format_number(pd_premium, "TRY")}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="info-box">✅ <b>{tr("bi_premium")}:</b> {format_number(bi_premium, "TRY")}</div>', unsafe_allow_html=True)
+            if ec > 0:
+                st.markdown(f'<div class="info-box">✅ <b>{tr("ec_premium")}:</b> {format_number(ec_premium, "TRY")}</div>', unsafe_allow_html=True)
+            if mk > 0:
+                st.markdown(f'<div class="info-box">✅ <b>{tr("mk_premium")}:</b> {format_number(mk_premium, "TRY")}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(total_premium, "TRY")}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}‰</div>', unsafe_allow_html=True)
 
