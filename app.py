@@ -68,7 +68,7 @@ with st.container():
     lang = st.radio("🌐", ["TR", "EN"], index=0, horizontal=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Language dictionary with full English translation
+# Language dictionary with updated English translations
 T = {
     "title": {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplama Uygulaması", "EN": "TarifeX – Smart Insurance Premium Calculator"},
     "subtitle": {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı için Uygulanacak Güncel Tarife", "EN": "Current Tariff for Earthquake and Volcanic Eruption Coverage"},
@@ -85,18 +85,26 @@ T = {
     "risk_group_type_help": {"TR": "A: Bina inşaatları, dekorasyon. B: Tünel, köprü, enerji santralleri gibi daha riskli projeler.", "EN": "A: Building construction, decoration. B: Tunnels, bridges, power plants, and other high-risk projects."},
     "currency": {"TR": "Para Birimi", "EN": "Currency"},
     "manual_fx": {"TR": "Kuru manuel güncelleyebilirsiniz", "EN": "You can manually update the exchange rate"},
-    "pd": {"TR": "Yangın Sigorta Bedeli (PD)", "EN": "Property Damage Sum Insured (PD)"},
-    "pd_help": {"TR": "Bina ve muhteviyat için yangın sigorta bedeli. Betonarme binalar için birim metrekare fiyatı min. 18,600 TL, diğerleri için 12,600 TL.", "EN": "Fire insurance sum for building and contents. Min. unit square meter price for concrete buildings: 18,600 TL; others: 12,600 TL."},
+    "building_sum": {"TR": "Bina Bedeli", "EN": "Building Sum Insured"},
+    "building_sum_help": {"TR": "Bina için sigorta bedeli. Betonarme binalar için birim metrekare fiyatı min. 18,600 TL, diğerleri için 12,600 TL.", "EN": "Sum insured for the building. Min. unit square meter price for concrete buildings: 18,600 TL; others: 12,600 TL."},
+    "fixture_sum": {"TR": "Demirbaş Bedeli", "EN": "Fixture Sum Insured"},
+    "fixture_sum_help": {"TR": "Demirbaşlar için sigorta bedeli.", "EN": "Sum insured for fixtures."},
+    "decoration_sum": {"TR": "Dekorasyon Bedeli", "EN": "Decoration Sum Insured"},
+    "decoration_sum_help": {"TR": "Dekorasyon için sigorta bedeli.", "EN": "Sum insured for decoration."},
+    "commodity_sum": {"TR": "Emtea Bedeli", "EN": "Commodity Sum Insured"},
+    "commodity_sum_help": {"TR": "Emtea (ticari mallar) için sigorta bedeli.", "EN": "Sum insured for commodities (commercial goods)."},
+    "safe_sum": {"TR": "Kasa Bedeli", "EN": "Safe Sum Insured"},
+    "safe_sum_help": {"TR": "Kasa için sigorta bedeli.", "EN": "Sum insured for the safe."},
     "bi": {"TR": "Kar Kaybı Bedeli (BI)", "EN": "Business Interruption Sum Insured (BI)"},
     "bi_help": {"TR": "Deprem sonrası ticari faaliyetin durması sonucu ciro azalması ve maliyet artışından kaynaklanan brüt kâr kaybı.", "EN": "Gross profit loss due to reduced turnover and increased costs from business interruption after an earthquake."},
-    "ec": {"TR": "Elektronik Cihaz Sigorta Bedeli (EC)", "EN": "Electronic Device Sum Insured (EC)"},
-    "ec_help": {"TR": "Elektronik cihazlar için sigorta bedeli.", "EN": "Sum insured for electronic devices."},
-    "ec_mobile": {"TR": "Elektronik Cihaz Seyyar/Taşınabilir mi?", "EN": "Is the Electronic Device Mobile/Portable?"},
-    "ec_mobile_help": {"TR": "Eğer cihaz seyyar veya taşınabilir ise işaretleyin.", "EN": "Check if the device is mobile or portable."},
-    "mk": {"TR": "Makine Kırılması Sigorta Bedeli (MK)", "EN": "Machinery Breakdown Sum Insured (MK)"},
-    "mk_help": {"TR": "Makine kırılması için sigorta bedeli.", "EN": "Sum insured for machinery breakdown."},
-    "mk_mobile": {"TR": "Makine Seyyar/Taşınabilir mi?", "EN": "Is the Machinery Mobile/Portable?"},
-    "mk_mobile_help": {"TR": "Eğer makine seyyar veya taşınabilir ise işaretleyin.", "EN": "Check if the machinery is mobile or portable."},
+    "ec_fixed": {"TR": "Elektronik Cihaz Bedeli (Sabit)", "EN": "Electronic Device Sum Insured (Fixed)"},
+    "ec_fixed_help": {"TR": "Sabit elektronik cihazlar için sigorta bedeli.", "EN": "Sum insured for fixed electronic devices."},
+    "ec_mobile": {"TR": "Elektronik Cihaz Bedeli (Taşınabilir)", "EN": "Electronic Device Sum Insured (Mobile)"},
+    "ec_mobile_help": {"TR": "Taşınabilir elektronik cihazlar için sigorta bedeli.", "EN": "Sum insured for mobile electronic devices."},
+    "mk_fixed": {"TR": "Makine Kırılması Bedeli (Sabit)", "EN": "Machinery Breakdown Sum Insured (Fixed)"},
+    "mk_fixed_help": {"TR": "Sabit makineler için sigorta bedeli.", "EN": "Sum insured for fixed machinery."},
+    "mk_mobile": {"TR": "Makine Kırılması Bedeli (Taşınabilir)", "EN": "Machinery Breakdown Sum Insured (Mobile)"},
+    "mk_mobile_help": {"TR": "Taşınabilir makineler için sigorta bedeli.", "EN": "Sum insured for mobile machinery."},
     "koas": {"TR": "Koasürans Oranı", "EN": "Coinsurance Share"},
     "koas_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
     "deduct": {"TR": "Muafiyet Oranı (%)", "EN": "Deductible (%)"},
@@ -280,12 +288,14 @@ def calculate_months_difference(start_date, end_date):
         months += 1
     return months
 
-def calculate_fire_premium(building_type, risk_group, currency, pd, bi, ec, ec_mobile, mk, mk_mobile, koas, deduct, fx_rate):
-    # Convert sums to TRY
-    pd_sum_insured = pd * fx_rate
+def calculate_fire_premium(building_type, risk_group, currency, building, fixture, decoration, commodity, safe, bi, ec_fixed, ec_mobile, mk_fixed, mk_mobile, koas, deduct, fx_rate):
+    # Calculate total PD sum insured
+    pd_sum_insured = (building + fixture + decoration + commodity + safe) * fx_rate
     bi_sum_insured = bi * fx_rate
-    ec_sum_insured = ec * fx_rate
-    mk_sum_insured = mk * fx_rate
+    ec_fixed_sum_insured = ec_fixed * fx_rate
+    ec_mobile_sum_insured = ec_mobile * fx_rate
+    mk_fixed_sum_insured = mk_fixed * fx_rate
+    mk_mobile_sum_insured = mk_mobile * fx_rate
     
     # Get base tariff rate (per mille)
     rate = tarife_oranlari[building_type][risk_group - 1]
@@ -310,29 +320,41 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, ec, ec_m
         adjusted_rate_bi = round(adjusted_rate_bi * (LIMIT_FIRE / bi_sum_insured), 6)
     bi_premium = (bi_sum_insured * adjusted_rate_bi) / 1000  # Per mille
     
-    # Calculate EC premium
+    # Calculate EC premium (Fixed and Mobile separately)
     ec_premium = 0.0
-    if ec > 0:  # Only calculate if EC value is provided
-        if ec_mobile:
-            ec_rate = 2.00  # Fixed rate for mobile EC devices
-        else:
-            ec_rate = rate * (1 - koas_discount) * (1 - deduct_discount)  # Use building type and risk group rate
-        if ec_sum_insured > LIMIT_EC_MK:
+    ec_fixed_premium = 0.0
+    ec_mobile_premium = 0.0
+    if ec_fixed > 0:  # Fixed EC
+        ec_fixed_rate = rate * (1 - koas_discount) * (1 - deduct_discount)  # Use building type and risk group rate
+        if ec_fixed_sum_insured > LIMIT_EC_MK:
             st.warning(tr("limit_warning_ec"))
-            ec_rate = round(ec_rate * (LIMIT_EC_MK / ec_sum_insured), 6)
-        ec_premium = (ec_sum_insured * ec_rate) / 1000
+            ec_fixed_rate = round(ec_fixed_rate * (LIMIT_EC_MK / ec_fixed_sum_insured), 6)
+        ec_fixed_premium = (ec_fixed_sum_insured * ec_fixed_rate) / 1000
+    if ec_mobile > 0:  # Mobile EC
+        ec_mobile_rate = 2.00  # Fixed rate for mobile EC devices
+        if ec_mobile_sum_insured > LIMIT_EC_MK:
+            st.warning(tr("limit_warning_ec"))
+            ec_mobile_rate = round(ec_mobile_rate * (LIMIT_EC_MK / ec_mobile_sum_insured), 6)
+        ec_mobile_premium = (ec_mobile_sum_insured * ec_mobile_rate) / 1000
+    ec_premium = ec_fixed_premium + ec_mobile_premium
     
-    # Calculate MK premium
+    # Calculate MK premium (Fixed and Mobile separately)
     mk_premium = 0.0
-    if mk > 0:  # Only calculate if MK value is provided
-        if mk_mobile:
-            mk_rate = 2.00  # Fixed rate for mobile MK equipment
-        else:
-            mk_rate = rate * (1 - koas_discount) * (1 - deduct_discount)  # Use building type and risk group rate
-        if mk_sum_insured > LIMIT_EC_MK:
+    mk_fixed_premium = 0.0
+    mk_mobile_premium = 0.0
+    if mk_fixed > 0:  # Fixed MK
+        mk_fixed_rate = rate * (1 - koas_discount) * (1 - deduct_discount)  # Use building type and risk group rate
+        if mk_fixed_sum_insured > LIMIT_EC_MK:
             st.warning(tr("limit_warning_mk"))
-            mk_rate = round(mk_rate * (LIMIT_EC_MK / mk_sum_insured), 6)
-        mk_premium = (mk_sum_insured * mk_rate) / 1000
+            mk_fixed_rate = round(mk_fixed_rate * (LIMIT_EC_MK / mk_fixed_sum_insured), 6)
+        mk_fixed_premium = (mk_fixed_sum_insured * mk_fixed_rate) / 1000
+    if mk_mobile > 0:  # Mobile MK
+        mk_mobile_rate = 2.00  # Fixed rate for mobile MK equipment
+        if mk_mobile_sum_insured > LIMIT_EC_MK:
+            st.warning(tr("limit_warning_mk"))
+            mk_mobile_rate = round(mk_mobile_rate * (LIMIT_EC_MK / mk_mobile_sum_insured), 6)
+        mk_mobile_premium = (mk_mobile_sum_insured * mk_mobile_rate) / 1000
+    mk_premium = mk_fixed_premium + mk_mobile_premium
     
     # Total premium
     total_premium = pd_premium + bi_premium + ec_premium + mk_premium
@@ -406,27 +428,53 @@ if calc_type == tr("calc_fire"):
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate, fx_info = fx_input(currency, "fire")
     
-    st.markdown("### SIGORTA BEDELLERI")
+    st.markdown("### SİGORTA BEDELLERİ")
     if currency != "TRY":
         st.info(fx_info)
     
-    pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
-    if pd > 0:
-        st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
+    # PD Breakdown (Building, Fixture, Decoration, Commodity, Safe)
+    building = st.number_input(tr("building_sum"), min_value=0.0, value=0.0, step=1000.0, help=tr("building_sum_help"))
+    if building > 0:
+        st.write(f"{tr('entered_value')}: {format_number(building, currency)}")
     
+    fixture = st.number_input(tr("fixture_sum"), min_value=0.0, value=0.0, step=1000.0, help=tr("fixture_sum_help"))
+    if fixture > 0:
+        st.write(f"{tr('entered_value')}: {format_number(fixture, currency)}")
+    
+    decoration = st.number_input(tr("decoration_sum"), min_value=0.0, value=0.0, step=1000.0, help=tr("decoration_sum_help"))
+    if decoration > 0:
+        st.write(f"{tr('entered_value')}: {format_number(decoration, currency)}")
+    
+    commodity = st.number_input(tr("commodity_sum"), min_value=0.0, value=0.0, step=1000.0, help=tr("commodity_sum_help"))
+    if commodity > 0:
+        st.write(f"{tr('entered_value')}: {format_number(commodity, currency)}")
+    
+    safe = st.number_input(tr("safe_sum"), min_value=0.0, value=0.0, step=1000.0, help=tr("safe_sum_help"))
+    if safe > 0:
+        st.write(f"{tr('entered_value')}: {format_number(safe, currency)}")
+    
+    # BI
     bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
     if bi > 0:
         st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
     
-    ec = st.number_input(tr("ec"), min_value=0.0, value=0.0, step=1000.0, help=tr("ec_help"))
-    if ec > 0:
-        st.write(f"{tr('entered_value')}: {format_number(ec, currency)}")
-    ec_mobile = st.checkbox(tr("ec_mobile"), help=tr("ec_mobile_help"))
+    # EC (Fixed and Mobile)
+    ec_fixed = st.number_input(tr("ec_fixed"), min_value=0.0, value=0.0, step=1000.0, help=tr("ec_fixed_help"))
+    if ec_fixed > 0:
+        st.write(f"{tr('entered_value')}: {format_number(ec_fixed, currency)}")
     
-    mk = st.number_input(tr("mk"), min_value=0.0, value=0.0, step=1000.0, help=tr("mk_help"))
-    if mk > 0:
-        st.write(f"{tr('entered_value')}: {format_number(mk, currency)}")
-    mk_mobile = st.checkbox(tr("mk_mobile"), help=tr("mk_mobile_help"))
+    ec_mobile = st.number_input(tr("ec_mobile"), min_value=0.0, value=0.0, step=1000.0, help=tr("ec_mobile_help"))
+    if ec_mobile > 0:
+        st.write(f"{tr('entered_value')}: {format_number(ec_mobile, currency)}")
+    
+    # MK (Fixed and Mobile)
+    mk_fixed = st.number_input(tr("mk_fixed"), min_value=0.0, value=0.0, step=1000.0, help=tr("mk_fixed_help"))
+    if mk_fixed > 0:
+        st.write(f"{tr('entered_value')}: {format_number(mk_fixed, currency)}")
+    
+    mk_mobile = st.number_input(tr("mk_mobile"), min_value=0.0, value=0.0, step=1000.0, help=tr("mk_mobile_help"))
+    if mk_mobile > 0:
+        st.write(f"{tr('entered_value')}: {format_number(mk_mobile, currency)}")
     
     st.markdown("### İNDIRIM ORANLARI")
     col5, col6 = st.columns(2)
@@ -437,7 +485,7 @@ if calc_type == tr("calc_fire"):
     
     if st.button(tr("btn_calc"), key="fire_calc"):
         pd_premium, bi_premium, ec_premium, mk_premium, total_premium, applied_rate = calculate_fire_premium(
-            building_type, risk_group, currency, pd, bi, ec, ec_mobile, mk, mk_mobile, koas, deduct, fx_rate
+            building_type, risk_group, currency, building, fixture, decoration, commodity, safe, bi, ec_fixed, ec_mobile, mk_fixed, mk_mobile, koas, deduct, fx_rate
         )
         if currency != "TRY":
             pd_premium_converted = pd_premium / fx_rate
@@ -447,17 +495,17 @@ if calc_type == tr("calc_fire"):
             total_premium_converted = total_premium / fx_rate
             st.markdown(f'<div class="info-box">✅ <b>{tr("pd_premium")}:</b> {format_number(pd_premium_converted, currency)}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="info-box">✅ <b>{tr("bi_premium")}:</b> {format_number(bi_premium_converted, currency)}</div>', unsafe_allow_html=True)
-            if ec > 0:
+            if ec_fixed > 0 or ec_mobile > 0:
                 st.markdown(f'<div class="info-box">✅ <b>{tr("ec_premium")}:</b> {format_number(ec_premium_converted, currency)}</div>', unsafe_allow_html=True)
-            if mk > 0:
+            if mk_fixed > 0 or mk_mobile > 0:
                 st.markdown(f'<div class="info-box">✅ <b>{tr("mk_premium")}:</b> {format_number(mk_premium_converted, currency)}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(total_premium_converted, currency)}</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="info-box">✅ <b>{tr("pd_premium")}:</b> {format_number(pd_premium, "TRY")}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="info-box">✅ <b>{tr("bi_premium")}:</b> {format_number(bi_premium, "TRY")}</div>', unsafe_allow_html=True)
-            if ec > 0:
+            if ec_fixed > 0 or ec_mobile > 0:
                 st.markdown(f'<div class="info-box">✅ <b>{tr("ec_premium")}:</b> {format_number(ec_premium, "TRY")}</div>', unsafe_allow_html=True)
-            if mk > 0:
+            if mk_fixed > 0 or mk_mobile > 0:
                 st.markdown(f'<div class="info-box">✅ <b>{tr("mk_premium")}:</b> {format_number(mk_premium, "TRY")}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(total_premium, "TRY")}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")}:</b> {applied_rate:.2f}‰</div>', unsafe_allow_html=True)
@@ -481,7 +529,7 @@ else:
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate, fx_info = fx_input(currency, "car")
     
-    st.markdown("### SIGORTA BEDELLERI")
+    st.markdown("### SİGORTA BEDELLERİ")
     if currency != "TRY":
         st.info(fx_info)
     
