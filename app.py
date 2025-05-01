@@ -294,10 +294,10 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, de
     return pd_premium, bi_premium, total_premium, rate
 
 def calculate_car_ear_premium(risk_group_type, risk_class, start_date, end_date, project, cpm, cpe, currency, koas, deduct, fx_rate):
-    # Calculate duration in months (Excel-style: MONTH(B5)-MONTH(B4)+(YEAR(B5)-YEAR(B4))*12+(DAY(B5)>=15))
+    # Calculate duration in months
     duration_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-    if end_date.day >= 15:
-        duration_months += 1
+    if start_date.day > end_date.day:
+        duration_months -= 1
     
     # Calculate days for CPM duration factor
     days = (end_date - start_date).days
@@ -415,8 +415,8 @@ else:
         end_date = st.date_input(tr("end"), value=datetime.today() + timedelta(days=365))
     with col2:
         duration_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-        if end_date.day >= 15:
-            duration_months += 1
+        if start_date.day > end_date.day:
+            duration_months -= 1
         st.write(f"⏳ {tr('duration')}: {duration_months} {tr('months')}", help=tr("duration_help"))
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate, fx_info = fx_input(currency, "car")
