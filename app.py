@@ -256,6 +256,27 @@ def calculate_duration_multiplier(months: int) -> float:
     extra_months = months - 36
     return base + (0.03 * extra_months)  # Çarpma yerine toplama (Güncellenmiş)
 
+def calculate_months_difference(start_date, end_date):
+    # Yıl farkı * 12 + ay farkı
+    months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+    
+    # Toplam gün farkı
+    total_days = (end_date - start_date).days
+    
+    # Tahmini gün farkı: (yıl farkı * 365) + (ay farkı * 30)
+    year_diff = end_date.year - start_date.year
+    month_diff = end_date.month - start_date.month
+    estimated_days = (year_diff * 365) + (month_diff * 30)
+    
+    # Kalan gün farkı
+    remaining_days = total_days - estimated_days
+    
+    # Eğer kalan gün farkı 15 veya daha fazlaysa, 1 ay ekle
+    if remaining_days >= 15:
+        months += 1
+        
+    return months
+
 def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate):
     # Convert sums to TRY
     pd_sum_insured = pd * fx_rate
@@ -294,9 +315,8 @@ def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, de
     return pd_premium, bi_premium, total_premium, rate
 
 def calculate_car_ear_premium(risk_group_type, risk_class, start_date, end_date, project, cpm, cpe, currency, koas, deduct, fx_rate):
-    # Calculate duration in months based on days
-    days = (end_date - start_date).days
-    duration_months = round(days / 30.42)  # Ortalama ay uzunluğu (365.25 / 12)
+    # Calculate duration in months using Excel-like logic
+    duration_months = calculate_months_difference(start_date, end_date)
     
     # Base rate and duration multiplier
     base_rate = tarife_oranlari[risk_group_type][risk_class - 1]
@@ -409,8 +429,7 @@ else:
         start_date = st.date_input(tr("start"), value=datetime.today())
         end_date = st.date_input(tr("end"), value=datetime.today() + timedelta(days=365))
     with col2:
-        days = (end_date - start_date).days
-        duration_months = round(days / 30.42)  # Ortalama ay uzunluğu (365.25 / 12)
+        duration_months = calculate_months_difference(start_date, end_date)
         st.write(f"⏳ {tr('duration')}: {duration_months} {tr('months')}", help=tr("duration_help"))
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate, fx_info = fx_input(currency, "car")
