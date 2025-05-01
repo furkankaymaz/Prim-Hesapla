@@ -402,33 +402,33 @@ if calc_type == tr("calc_fire"):
     with col1:
         building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"], help=tr("building_type_help"))
         risk_group = st.selectbox(tr("risk_group"), [1, 2, 3, 4, 5, 6, 7], help=tr("risk_group_help"))
-        currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
     with col2:
+        currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate, fx_info = fx_input(currency, "fire")
     
-    st.markdown("### " + ("Sigorta Bedelleri" if lang == "TR" else "Sums Insured"))
+    st.markdown("### SIGORTA BEDELLERI")
     if currency != "TRY":
         st.info(fx_info)
     
-    col3, col4 = st.columns(2)
-    with col3:
-        pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
-        if pd > 0:
-            st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
-        bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
-        if bi > 0:
-            st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
-    with col4:
-        ec = st.number_input(tr("ec"), min_value=0.0, value=0.0, step=1000.0, help=tr("ec_help"))
-        if ec > 0:
-            st.write(f"{tr('entered_value')}: {format_number(ec, currency)}")
-        ec_mobile = st.checkbox(tr("ec_mobile"), help=tr("ec_mobile_help"))
-        mk = st.number_input(tr("mk"), min_value=0.0, value=0.0, step=1000.0, help=tr("mk_help"))
-        if mk > 0:
-            st.write(f"{tr('entered_value')}: {format_number(mk, currency)}")
-        mk_mobile = st.checkbox(tr("mk_mobile"), help=tr("mk_mobile_help"))
+    pd = st.number_input(tr("pd"), min_value=0.0, value=0.0, step=1000.0, help=tr("pd_help"))
+    if pd > 0:
+        st.write(f"{tr('entered_value')}: {format_number(pd, currency)}")
     
-    st.markdown("### " + ("İndirim Oranları" if lang == "TR" else "Discount Rates"))
+    bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, help=tr("bi_help"))
+    if bi > 0:
+        st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
+    
+    ec = st.number_input(tr("ec"), min_value=0.0, value=0.0, step=1000.0, help=tr("ec_help"))
+    if ec > 0:
+        st.write(f"{tr('entered_value')}: {format_number(ec, currency)}")
+    ec_mobile = st.checkbox(tr("ec_mobile"), help=tr("ec_mobile_help"))
+    
+    mk = st.number_input(tr("mk"), min_value=0.0, value=0.0, step=1000.0, help=tr("mk_help"))
+    if mk > 0:
+        st.write(f"{tr('entered_value')}: {format_number(mk, currency)}")
+    mk_mobile = st.checkbox(tr("mk_mobile"), help=tr("mk_mobile_help"))
+    
+    st.markdown("### İNDIRIM ORANLARI")
     col5, col6 = st.columns(2)
     with col5:
         koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
@@ -481,7 +481,7 @@ else:
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate, fx_info = fx_input(currency, "car")
     
-    st.markdown("### " + ("Sigorta Bedelleri" if lang == "TR" else "Sums Insured"))
+    st.markdown("### SIGORTA BEDELLERI")
     if currency != "TRY":
         st.info(fx_info)
     
@@ -499,7 +499,7 @@ else:
         if cpe > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpe, currency)}")
     
-    st.markdown("### " + ("İndirim Oranları" if lang == "TR" else "Discount Rates"))
+    st.markdown("### İNDIRIM ORANLARI")
     col6, col7 = st.columns(2)
     with col6:
         koas = st.selectbox(tr("coins"), list(koasurans_indirimi_car.keys()), help=tr("coins_help"))
