@@ -254,7 +254,7 @@ def calculate_duration_multiplier(months: int) -> float:
         return sure_carpani_tablosu.get(months, 1.0)
     base = sure_carpani_tablosu[36]
     extra_months = months - 36
-    return base * (1 + 0.03 * extra_months)
+    return base + (0.03 * extra_months)  # Çarpma yerine toplama (Güncellenmiş)
 
 def calculate_fire_premium(building_type, risk_group, currency, pd, bi, koas, deduct, fx_rate):
     # Convert sums to TRY
@@ -323,7 +323,6 @@ def calculate_car_ear_premium(risk_group_type, risk_class, start_date, end_date,
     # CPM Premium
     cpm_sum_insured = cpm * fx_rate
     cpm_rate = 1.25  # Excel'deki oran (binde 1,25)
-    duration_multiplier = calculate_duration_multiplier(duration_months)  # Ay bazlı süre çarpanı (1,05)
     if cpm_sum_insured > LIMIT:
         st.warning(tr("limit_warning_car"))
         cpm_rate *= (LIMIT / cpm_sum_insured)
