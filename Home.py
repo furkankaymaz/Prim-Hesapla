@@ -9,6 +9,7 @@ st.set_page_config(
 
 # Dil seçimi
 lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
+st.sidebar.page_link("/Tariffeq_Calculation", label="🚀 Hemen Hesapla / Calculate Now !")
 
 # Çeviri sözlüğü
 T = {
@@ -51,7 +52,7 @@ st.markdown("""
         margin-bottom: 1.5em;
     }
     .header img {
-        height: 180px;
+        height: 280px;
         margin-bottom: 1em;
     }
     .header h1 {
@@ -110,7 +111,7 @@ with col3:
 st.markdown(f"### {T['founders'][lang]}")
 f1, f2 = st.columns(2)
 with f1:
-    st.image("https://i.ibb.co/QfMdMQQ/furkan.jpg", width=150)
+    st.image("https://i.ibb.co/99NWxnxH/furkan.jpg", width=150)
     st.markdown("**Osman Furkan Kaymaz**")
     st.markdown("[LinkedIn](https://www.linkedin.com/in/furkan-kaymaz-97736718b/)")
 with f2:
