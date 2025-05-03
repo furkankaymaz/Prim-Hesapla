@@ -1,11 +1,17 @@
 import streamlit as st
 
+# Sayfa Ayarları (en üstte olmalı ve page_title sabit bir değerle başlatılmalı)
+st.set_page_config(
+    page_title="TariffEQ – Smart Insurance Calculator",
+    layout="wide",
+    page_icon="📊"
+)
+
 # Dil seçimi
 lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
 
 # Çeviri sözlüğü
 T = {
-    "page_title": {"TR": "Ana Sayfa", "EN": "Home"},
     "title": {"TR": "TariffEQ", "EN": "TariffEQ"},
     "subtitle": {
         "TR": "Akıllı Sigorta Prim Hesaplama Platformu",
@@ -31,15 +37,16 @@ T = {
     },
     "comment": {"TR": "Yorum Bırak", "EN": "Leave a Comment"},
     "comment_placeholder": {"TR": "Yorumunuzu buraya yazın...", "EN": "Write your comment here..."},
-    "submit": {"TR": "Gönder", "EN": "Submit"}
+    "submit": {"TR": "Gönder", "EN": "Submit"},
+    "home": {"TR": "Ana Sayfa", "EN": "Home"},
+    "calc": {"TR": "🚀 Hemen Hesapla", "EN": "🚀 Calculate Now"}
 }
 
-# Sayfa Ayarları (page_title dinamik olarak dil seçimine göre değişiyor)
-st.set_page_config(
-    page_title=T["page_title"][lang],
-    layout="wide",
-    page_icon="📊"
-)
+# Sidebar’da özel navigasyon
+st.sidebar.header(T["home"][lang])
+if st.sidebar.button(T["calc"][lang]):
+    st.session_state.lang = lang
+    st.switch_page("pages/Hesaplama.py")
 
 # Özel CSS
 st.markdown("""
