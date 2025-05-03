@@ -68,7 +68,7 @@ with st.container():
     lang = st.radio("🌐", ["TR", "EN"], index=0, horizontal=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Language dictionary with updated English translations
+# Language dictionary
 T = {
     "title": {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplama Uygulaması", "EN": "TarifeX – Smart Insurance Premium Calculator"},
     "subtitle": {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı için Uygulanacak Güncel Tarife", "EN": "Current Tariff for Earthquake and Volcanic Eruption Coverage"},
@@ -85,8 +85,6 @@ T = {
     "building_type_help": {"TR": "Betonarme: Çelik veya betonarme taşıyıcı karkas bulunan yapılar. Diğer: Bu gruba girmeyen yapılar.", "EN": "Concrete: Structures with steel or reinforced concrete framework. Other: Structures not in this group."},
     "risk_group": {"TR": "Deprem Risk Grubu (1=En Yüksek Risk)", "EN": "Earthquake Risk Zone (1=Highest)"},
     "risk_group_help": {"TR": "Deprem risk grupları, Doğal Afet Sigortaları Kurumu tarafından belirlenir. 1. Grup en yüksek risktir.", "EN": "Earthquake risk zones are determined by the Natural Disaster Insurance Institution. Zone 1 is the highest risk."},
-    "risk_group_type": {"TR": "Risk Sınıfı Türü", "EN": "Risk Group Type"},
-    "risk_group_type_help": {"TR": "A: Bina inşaatları, dekorasyon. B: Tünel, köprü, enerji santralleri gibi daha riskli projeler.", "EN": "A: Building construction, decoration. B: Tunnels, bridges, power plants, and other high-risk projects."},
     "currency": {"TR": "Para Birimi", "EN": "Currency"},
     "manual_fx": {"TR": "Kuru manuel güncelleyebilirsiniz", "EN": "You can manually update the exchange rate"},
     "building_sum": {"TR": "Bina Bedeli", "EN": "Building Sum Insured"},
@@ -290,7 +288,6 @@ def calculate_months_difference(start_date, end_date):
     return months
 
 def determine_group_params(locations_data):
-    # Group locations by risk address group
     groups = {}
     for loc in locations_data:
         group = loc["group"]
@@ -298,17 +295,14 @@ def determine_group_params(locations_data):
             groups[group] = []
         groups[group].append(loc)
     
-    # Determine building type and risk group for each group
+    result = {}
     for group, locs in groups.items():
-        # Select building type with highest rate (Diğer > Betonarme)
         building_types = [loc["building_type"] for loc in locs]
         building_type = "Diğer" if "Diğer" in building_types else "Betonarme"
         
-        # Select highest risk group (lowest number)
         risk_groups = [loc["risk_group"] for loc in locs]
         risk_group = min(risk_groups)
         
-        # Sum insured values
         building = sum(loc["building"] for loc in locs)
         fixture = sum(loc["fixture"] for loc in locs)
         decoration = sum(loc["decoration"] for loc in locs)
@@ -320,7 +314,7 @@ def determine_group_params(locations_data):
         mk_fixed = sum(loc["mk_fixed"] for loc in locs)
         mk_mobile = sum(loc["mk_mobile"] for loc in locs)
         
-        groups[group] = {
+        result[group] = {
             "building_type": building_type,
             "risk_group": risk_group,
             "building": building,
@@ -334,7 +328,7 @@ def determine_group_params(locations_data):
             "mk_fixed": mk_fixed,
             "mk_mobile": mk_mobile
         }
-    return groups
+    return result
 
 def calculate_fire_premium(building_type, risk_group, currency, building, fixture, decoration, commodity, safe, bi, ec_fixed, ec_mobile, mk_fixed, mk_mobile, koas, deduct, fx_rate):
     pd_sum_insured = (building + fixture + decoration + commodity + safe) * fx_rate
@@ -456,9 +450,9 @@ if calc_type == tr("calc_fire"):
     # Number of Locations
     num_locations = st.number_input(tr("num_locations"), min_value=1, max_value=10, value=1, step=1, help=tr("num_locations_help"))
     
-    # Risk Address Groups
-    groups = [chr(65 + i) for i in range(num_locations)]  # A, B, C, ...
+    # Locations Input
     locations_data = []
+    groups = [chr(65 + i) for i in range(num_locations)]  # A, B, C, ...
     for i in range(num_locations):
         with st.expander(f"Lokasyon {i + 1}" if lang == "TR" else f"Location {i + 1}"):
             col1, col2 = st.columns(2)
