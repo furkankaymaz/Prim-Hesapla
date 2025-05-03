@@ -1,14 +1,14 @@
 import streamlit as st
 
-# Sayfa Ayarları (en üstte olmalı ve page_title sabit bir değerle başlatılmalı)
+# Sayfa Ayarları (en üstte olmalı)
 st.set_page_config(
     page_title="TariffEQ – Smart Insurance Calculator",
     layout="wide",
     page_icon="📊"
 )
 
-# Dil seçimi
-lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
+# Dil seçimi (en üstte)
+lang = st.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
 
 # Çeviri sözlüğü
 T = {
@@ -42,15 +42,13 @@ T = {
     "calc": {"TR": "🚀 Hemen Hesapla", "EN": "🚀 Calculate Now"}
 }
 
-# Sidebar’da özel navigasyon
-st.sidebar.header(T["home"][lang])
-if st.sidebar.button(T["calc"][lang]):
-    st.session_state.lang = lang
-    st.switch_page("pages/Hesaplama.py")
-
-# Özel CSS
+# Özel CSS (Navigasyon butonlarını gizle ve özel navigasyon için stil)
 st.markdown("""
 <style>
+    /* Streamlit'in varsayılan navigasyon menüsünü gizle */
+    [data-testid="stSidebarNav"] {
+        display: none;
+    }
     .header {
         background: linear-gradient(135deg, #E8F4FD 0%, #D1E8FF 100%);
         padding: 2em;
@@ -95,8 +93,34 @@ st.markdown("""
         padding-top: 1em;
         border-top: 1px solid #E0E7FF;
     }
+    .nav-buttons {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 1em;
+    }
+    .nav-buttons button {
+        background-color: #2E86C1;
+        color: white;
+        border-radius: 8px;
+        padding: 0.5em 1em;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    .nav-buttons button:hover {
+        background-color: #1A5276;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# Özel navigasyon butonları
+col1, col2, _ = st.columns([1, 1, 8])
+with col1:
+    st.button(T["home"][lang], disabled=True)  # Şu anki sayfa, devre dışı
+with col2:
+    if st.button(T["calc"][lang]):
+        st.session_state.lang = lang
+        st.switch_page("pages/Hesaplama.py")
 
 # Başlık
 st.markdown("""
