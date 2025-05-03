@@ -22,7 +22,9 @@ T = {
         "TR": "TariffEQ, deprem, inşaat ve ticari rizikolar için minimum prim hesaplamalarını saniyeler içinde yapmanızı sağlar.",
         "EN": "TariffEQ enables you to calculate minimum insurance premiums for earthquake, construction, and commercial risks within seconds."
     },
-    "why": {"TR": "Neden TariffEQ?", "EN": "Why TariffEQ?"},
+    "home": {"TR": "Ana Sayfa", "EN": "Home"},
+    "calc": {"TR": "🚀 Hemen Hesapla", "EN": "🚀 Calculate Now"},
+    "why": {"TR": "TariffEQ Nedir?", "EN": "What is TariffEQ?"},
     "feature1": {"TR": "⚡ Kolay ve Hızlı Kullanım", "EN": "⚡ Easy & Fast Use"},
     "feature2": {"TR": "📐 Teknik Doğruluk", "EN": "📐 Technical Accuracy"},
     "feature3": {"TR": "🤝 Reasürör ve Broker Dostu", "EN": "🤝 Reinsurer & Broker Friendly"},
@@ -39,6 +41,10 @@ T = {
     "comment_placeholder": {"TR": "Yorumunuzu buraya yazın...", "EN": "Write your comment here..."},
     "submit": {"TR": "Gönder", "EN": "Submit"}
 }
+
+# Sidebar menü başlıkları
+st.sidebar.header(T["home"][lang])
+st.sidebar.header(T["calc"][lang])
 
 # Özel CSS
 st.markdown("""
