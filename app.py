@@ -72,7 +72,7 @@ with st.container():
 T = {
     "title": {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplama Uygulaması", "EN": "TarifeX – Smart Insurance Premium Calculator"},
     "subtitle": {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı için Uygulanacak Güncel Tarife", "EN": "Current Tariff for Earthquake and Volcanic Eruption Coverage"},
-    "fire_header": {"TR": "🌍 Deprem Teminatı (PD & BI)", "EN": "🌍 Earthquake Coverage (PD & BI)"},
+    "fire_header": {"TR": "Deprem Teminatı (PD & BI)", "EN": "Earthquake Coverage (PD & BI)"},
     "car_header": {"TR": "🏗️ İnşaat & Montaj Hesaplama", "EN": "🏗️ Construction & Erection Calculation"},
     "select_calc": {"TR": "Hesaplama Türünü Seçin", "EN": "Select Calculation Type"},
     "calc_fire": {"TR": "Deprem Teminatı - Ticari Sınai Rizikolar (PD & BI)", "EN": "Earthquake Coverage – Commercial / Industrial (PD & BI)"},
@@ -105,8 +105,8 @@ T = {
     "ec_mobile_help": {"TR": "Taşınabilir elektronik cihazlar için sigorta bedeli.", "EN": "Sum insured for mobile electronic devices."},
     "mk_fixed": {"TR": "Makine Kırılması Bedeli (Sabit)", "EN": "Machinery Breakdown Sum Insured (Fixed)"},
     "mk_fixed_help": {"TR": "Sabit makineler için sigorta bedeli.", "EN": "Sum insured for fixed machinery."},
-    "mk_mobile": {"TR": "Makine Kırılması Bedeli (Seyyar)", "EN": "Machinery Breakdown Sum Insured (Portable)"},
-    "mk_mobile_help": {"TR": "Seyyar makineler için sigorta bedeli.", "EN": "Sum insured for portable machinery."},
+    "mk_mobile": {"TR": "Makine Kırılması Bedeli (Taşınabilir)", "EN": "Machinery Breakdown Sum Insured (Mobile)"},
+    "mk_mobile_help": {"TR": "Taşınabilir makineler için sigorta bedeli.", "EN": "Sum insured for mobile machinery."},
     "koas": {"TR": "Koasürans Oranı", "EN": "Coinsurance Share"},
     "koas_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
     "deduct": {"TR": "Muafiyet Oranı (%)", "EN": "Deductible (%)"},
@@ -146,13 +146,8 @@ T = {
     "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
     "pd_premium": {"TR": "PD Primi", "EN": "PD Premium"},
     "bi_premium": {"TR": "BI Primi", "EN": "BI Premium"},
-    "risk_group_type": {"TR": "Risk Sınıfı", "EN": "Risk Class"},
-    "risk_group_type_help": {
-        "TR": "Risk Sınıfı A: Her türlü bina inşaatı, bina içi dekorasyon ve tadilat işleri, makine, teçhizat ve geçici baraka/yardımcı tesisler (yıllık). Risk Sınıfı B: Altyapı ve ağır mühendislik işleri: kara/demiryolu, tünel, köprü, viyadük, baraj, metro, havaalanı, liman vb. Endüstriyel tesisler: enerji santrali, iletim hattı, silo, kule, tank. Zemin ve temel işleri: iksa, istinat, zemin iyileştirme, dolgular. Sulama, kanalizasyon ve altyapı işleri. Peyzaj, saha düzenleme ve park-bahçe işleri. Montaj işleri ve A dışında kalan diğer inşaat türleri.",
-        "EN": "Risk Class A: All types of building construction, interior decoration and renovation works, machinery, equipment, and temporary sheds/support facilities (annual). Risk Class B: Infrastructure and heavy engineering works: roads/railways, tunnels, bridges, viaducts, dams, metro, airports, ports, etc. Industrial facilities: power plants, transmission lines, silos, towers, tanks. Ground and foundation works: shoring, retaining walls, ground improvement, fills. Irrigation, sewerage, and infrastructure works. Landscaping, site arrangement, and park-garden works. Assembly works and other construction types outside A."
-    },
-    "insurance_sums": {"TR": "Sigorta Bedelleri 📋", "EN": "Insurance Sums Insured 📋"},
-    "coinsurance_deductible": {"TR": "Koasürans / Muafiyet Oranı ⚖️", "EN": "Coinsurance / Deductible Rate ⚖️"}
+    "risk_group_type": {"TR": "Risk Grubu Türü", "EN": "Risk Group Type"},
+    "risk_group_type_help": {"TR": "Risk grubu türü A veya B olarak seçilir.", "EN": "Select risk group type as A or B."}
 }
 
 def tr(key: str) -> str:
@@ -461,140 +456,73 @@ if calc_type == tr("calc_fire"):
     locations_data = []
     groups = [chr(65 + i) for i in range(num_locations)]  # A, B, C, ...
     for i in range(num_locations):
-        if i == 0:
-            with st.expander(f"Lokasyon {i + 1}", expanded=True) if lang == "TR" else st.expander(f"Location {i + 1}", expanded=True):
-                col1, col2 = st.columns(2)
-                with col1:
-                    building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"], key=f"building_type_{i}", help=tr("building_type_help"))
-                    risk_group = st.selectbox(tr("risk_group"), [1, 2, 3, 4, 5, 6, 7], key=f"risk_group_{i}", help=tr("risk_group_help"))
-                with col2:
-                    group = st.selectbox(tr("location_group"), groups, key=f"group_{i}", help=tr("location_group_help"))
-                    if i == 0:
-                        currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"], key="fire_currency")
-                        fx_rate, fx_info = fx_input(currency, "fire")
-                
-                st.markdown(f"#### {tr('insurance_sums')}")
-                if currency != "TRY":
-                    st.info(fx_info)
-                
-                col3, col4, col5 = st.columns(3)
-                with col3:
-                    building = st.number_input(tr("building_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"building_{i}", help=tr("building_sum_help"))
-                    if building > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(building, currency)}")
-                    fixture = st.number_input(tr("fixture_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"fixture_{i}", help=tr("fixture_sum_help"))
-                    if fixture > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(fixture, currency)}")
-                    decoration = st.number_input(tr("decoration_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"decoration_{i}", help=tr("decoration_sum_help"))
-                    if decoration > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(decoration, currency)}")
-                    bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, key=f"bi_{i}", help=tr("bi_help"))
-                    if bi > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
-                with col4:
-                    commodity = st.number_input(tr("commodity_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"commodity_{i}", help=tr("commodity_sum_help"))
-                    if commodity > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(commodity, currency)}")
-                    safe = st.number_input(tr("safe_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"safe_{i}", help=tr("safe_sum_help"))
-                    if safe > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(safe, currency)}")
-                with col5:
-                    ec_fixed = st.number_input(tr("ec_fixed"), min_value=0.0, value=0.0, step=1000.0, key=f"ec_fixed_{i}", help=tr("ec_fixed_help"))
-                    if ec_fixed > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(ec_fixed, currency)}")
-                    ec_mobile = st.number_input(tr("ec_mobile"), min_value=0.0, value=0.0, step=1000.0, key=f"ec_mobile_{i}", help=tr("ec_mobile_help"))
-                    if ec_mobile > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(ec_mobile, currency)}")
-                    mk_fixed = st.number_input(tr("mk_fixed"), min_value=0.0, value=0.0, step=1000.0, key=f"mk_fixed_{i}", help=tr("mk_fixed_help"))
-                    if mk_fixed > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(mk_fixed, currency)}")
-                    mk_mobile = st.number_input(tr("mk_mobile"), min_value=0.0, value=0.0, step=1000.0, key=f"mk_mobile_{i}", help=tr("mk_mobile_help"))
-                    if mk_mobile > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(mk_mobile, currency)}")
-                
-                locations_data.append({
-                    "group": group,
-                    "building_type": building_type,
-                    "risk_group": risk_group,
-                    "building": building,
-                    "fixture": fixture,
-                    "decoration": decoration,
-                    "commodity": commodity,
-                    "safe": safe,
-                    "bi": bi,
-                    "ec_fixed": ec_fixed,
-                    "ec_mobile": ec_mobile,
-                    "mk_fixed": mk_fixed,
-                    "mk_mobile": mk_mobile
-                })
-        else:
-            with st.expander(f"Lokasyon {i + 1}" if lang == "TR" else f"Location {i + 1}"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"], key=f"building_type_{i}", help=tr("building_type_help"))
-                    risk_group = st.selectbox(tr("risk_group"), [1, 2, 3, 4, 5, 6, 7], key=f"risk_group_{i}", help=tr("risk_group_help"))
-                with col2:
-                    group = st.selectbox(tr("location_group"), groups, key=f"group_{i}", help=tr("location_group_help"))
-                    if i == 0:
-                        currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"], key="fire_currency")
-                        fx_rate, fx_info = fx_input(currency, "fire")
-                
-                st.markdown(f"#### {tr('insurance_sums')}")
-                if currency != "TRY":
-                    st.info(fx_info)
-                
-                col3, col4, col5 = st.columns(3)
-                with col3:
-                    building = st.number_input(tr("building_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"building_{i}", help=tr("building_sum_help"))
-                    if building > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(building, currency)}")
-                    fixture = st.number_input(tr("fixture_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"fixture_{i}", help=tr("fixture_sum_help"))
-                    if fixture > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(fixture, currency)}")
-                    decoration = st.number_input(tr("decoration_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"decoration_{i}", help=tr("decoration_sum_help"))
-                    if decoration > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(decoration, currency)}")
-                    bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, key=f"bi_{i}", help=tr("bi_help"))
-                    if bi > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
-                with col4:
-                    commodity = st.number_input(tr("commodity_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"commodity_{i}", help=tr("commodity_sum_help"))
-                    if commodity > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(commodity, currency)}")
-                    safe = st.number_input(tr("safe_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"safe_{i}", help=tr("safe_sum_help"))
-                    if safe > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(safe, currency)}")
-                with col5:
-                    ec_fixed = st.number_input(tr("ec_fixed"), min_value=0.0, value=0.0, step=1000.0, key=f"ec_fixed_{i}", help=tr("ec_fixed_help"))
-                    if ec_fixed > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(ec_fixed, currency)}")
-                    ec_mobile = st.number_input(tr("ec_mobile"), min_value=0.0, value=0.0, step=1000.0, key=f"ec_mobile_{i}", help=tr("ec_mobile_help"))
-                    if ec_mobile > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(ec_mobile, currency)}")
-                    mk_fixed = st.number_input(tr("mk_fixed"), min_value=0.0, value=0.0, step=1000.0, key=f"mk_fixed_{i}", help=tr("mk_fixed_help"))
-                    if mk_fixed > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(mk_fixed, currency)}")
-                    mk_mobile = st.number_input(tr("mk_mobile"), min_value=0.0, value=0.0, step=1000.0, key=f"mk_mobile_{i}", help=tr("mk_mobile_help"))
-                    if mk_mobile > 0:
-                        st.write(f"{tr('entered_value')}: {format_number(mk_mobile, currency)}")
-                
-                locations_data.append({
-                    "group": group,
-                    "building_type": building_type,
-                    "risk_group": risk_group,
-                    "building": building,
-                    "fixture": fixture,
-                    "decoration": decoration,
-                    "commodity": commodity,
-                    "safe": safe,
-                    "bi": bi,
-                    "ec_fixed": ec_fixed,
-                    "ec_mobile": ec_mobile,
-                    "mk_fixed": mk_fixed,
-                    "mk_mobile": mk_mobile
-                })
+        with st.expander(f"Lokasyon {i + 1}" if lang == "TR" else f"Location {i + 1}"):
+            col1, col2 = st.columns(2)
+            with col1:
+                building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"], key=f"building_type_{i}", help=tr("building_type_help"))
+                risk_group = st.selectbox(tr("risk_group"), [1, 2, 3, 4, 5, 6, 7], key=f"risk_group_{i}", help=tr("risk_group_help"))
+            with col2:
+                group = st.selectbox(tr("location_group"), groups, key=f"group_{i}", help=tr("location_group_help"))
+                if i == 0:
+                    currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"], key="fire_currency")
+                    fx_rate, fx_info = fx_input(currency, "fire")
+            
+            st.markdown("#### Sigorta Bedelleri 📋")
+            if currency != "TRY":
+                st.info(fx_info)
+            
+            col3, col4, col5 = st.columns(3)
+            with col3:
+                building = st.number_input(tr("building_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"building_{i}", help=tr("building_sum_help"))
+                if building > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(building, currency)}")
+                fixture = st.number_input(tr("fixture_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"fixture_{i}", help=tr("fixture_sum_help"))
+                if fixture > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(fixture, currency)}")
+                decoration = st.number_input(tr("decoration_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"decoration_{i}", help=tr("decoration_sum_help"))
+                if decoration > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(decoration, currency)}")
+                bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, key=f"bi_{i}", help=tr("bi_help"))
+                if bi > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
+            with col4:
+                commodity = st.number_input(tr("commodity_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"commodity_{i}", help=tr("commodity_sum_help"))
+                if commodity > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(commodity, currency)}")
+                safe = st.number_input(tr("safe_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"safe_{i}", help=tr("safe_sum_help"))
+                if safe > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(safe, currency)}")
+            with col5:
+                ec_fixed = st.number_input(tr("ec_fixed"), min_value=0.0, value=0.0, step=1000.0, key=f"ec_fixed_{i}", help=tr("ec_fixed_help"))
+                if ec_fixed > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(ec_fixed, currency)}")
+                ec_mobile = st.number_input(tr("ec_mobile"), min_value=0.0, value=0.0, step=1000.0, key=f"ec_mobile_{i}", help=tr("ec_mobile_help"))
+                if ec_mobile > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(ec_mobile, currency)}")
+                mk_fixed = st.number_input(tr("mk_fixed"), min_value=0.0, value=0.0, step=1000.0, key=f"mk_fixed_{i}", help=tr("mk_fixed_help"))
+                if mk_fixed > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(mk_fixed, currency)}")
+                mk_mobile = st.number_input(tr("mk_mobile"), min_value=0.0, value=0.0, step=1000.0, key=f"mk_mobile_{i}", help=tr("mk_mobile_help"))
+                if mk_mobile > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(mk_mobile, currency)}")
+            
+            locations_data.append({
+                "group": group,
+                "building_type": building_type,
+                "risk_group": risk_group,
+                "building": building,
+                "fixture": fixture,
+                "decoration": decoration,
+                "commodity": commodity,
+                "safe": safe,
+                "bi": bi,
+                "ec_fixed": ec_fixed,
+                "ec_mobile": ec_mobile,
+                "mk_fixed": mk_fixed,
+                "mk_mobile": mk_mobile
+            })
     
-    st.markdown(f"#### {tr('coinsurance_deductible')}")
+    st.markdown("#### Koasürans / Muafiyet Oranı ⚖️")
     col5, col6 = st.columns(2)
     with col5:
         koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
@@ -656,7 +584,7 @@ else:
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate, fx_info = fx_input(currency, "car")
     
-    st.markdown(f"### {tr('insurance_sums')}")
+    st.markdown("### SİGORTA BEDELLERİ")
     if currency != "TRY":
         st.info(fx_info)
     
@@ -674,8 +602,31 @@ else:
         if cpe > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpe, currency)}")
     
-    st.markdown(f"### {tr('coinsurance_deductible')}")
+    st.markdown("### İNDIRIM ORANLARI")
     col6, col7 = st.columns(2)
     with col6:
         koas = st.selectbox(tr("coins"), list(koasurans_indirimi_car.keys()), help=tr("coins_help"))
-    with col
+    with col7:
+        deduct = st.selectbox(tr("ded"), sorted(list(muafiyet_indirimi_car.keys()), reverse=True), help=tr("ded_help"))
+    
+    if st.button(tr("btn_calc"), key="car_calc"):
+        car_premium, cpm_premium, cpe_premium, total_premium, applied_rate = calculate_car_ear_premium(
+            risk_group_type, risk_class, start_date, end_date, project, cpm, cpe, currency, koas, deduct, fx_rate
+        )
+        if currency != "TRY":
+            car_premium_converted = car_premium / fx_rate
+            cpm_premium_converted = cpm_premium / fx_rate
+            cpe_premium_converted = cpe_premium / fx_rate
+            total_premium_converted = total_premium / fx_rate
+            st.markdown(f'<div class="info-box">✅ <b>{tr("car_premium")}:</b> {format_number(car_premium_converted, currency)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("cpm_premium")}:</b> {format_number(cpm_premium_converted, currency)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("cpe_premium")}:</b> {format_number(cpe_premium_converted, currency)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(total_premium_converted, currency)}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="info-box">✅ <b>{tr("car_premium")}:</b> {format_number(car_premium, "TRY")}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("cpm_premium")}:</b> {format_number(cpm_premium, "TRY")}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("cpe_premium")}:</b> {format_number(cpe_premium, "TRY")}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-box">✅ <b>{tr("total_premium")}:</b> {format_number(total_premium, "TRY")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")} (CAR):</b> {applied_rate:.2f}‰</div>', unsafe_allow_html=True)
+        total_rate = (total_premium / (project + cpm + cpe)) * 1000 if (project + cpm + cpe) > 0 else 0
+        st.markdown(f'<div class="info-box">📊 <b>{tr("applied_rate")} (Toplam):</b> {total_rate:.2f}‰</div>', unsafe_allow_html=True)
