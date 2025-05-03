@@ -34,7 +34,10 @@ T = {
     "footer": {
         "TR": "© 2025 TariffEQ. Tüm Hakları Saklıdır.",
         "EN": "© 2025 TariffEQ. All rights reserved."
-    }
+    },
+    "comment": {"TR": "Yorum Bırak", "EN": "Leave a Comment"},
+    "comment_placeholder": {"TR": "Yorumunuzu buraya yazın...", "EN": "Write your comment here..."},
+    "submit": {"TR": "Gönder", "EN": "Submit"}
 }
 
 # Özel CSS
@@ -48,11 +51,11 @@ st.markdown("""
         margin-bottom: 1.5em;
     }
     .header img {
-        height: 100px;
+        height: 180px;
         margin-bottom: 1em;
     }
     .header h1 {
-        font-size: 3em;
+        font-size: 3.2em;
         color: #2E86C1;
         margin-bottom: 0.2em;
     }
@@ -67,14 +70,6 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
         text-align: center;
         margin-bottom: 1em;
-    }
-    .founder-img {
-        border-radius: 50%;
-        height: 150px;
-        width: 150px;
-        object-fit: cover;
-        border: 3px solid #2E86C1;
-        margin-bottom: 0.5em;
     }
     .footer {
         text-align: center;
@@ -99,7 +94,7 @@ st.markdown("""
 # Açıklama ve Başlat Butonu
 st.markdown(f"#### {T['desc'][lang]}")
 if st.button(T['start'][lang]):
-    st.success("Yönlendiriliyor...")
+    st.switch_page("/Tariffeq_Calculation")
 
 # Neden TariffEQ
 st.markdown(f"### {T['why'][lang]}")
@@ -115,7 +110,7 @@ with col3:
 st.markdown(f"### {T['founders'][lang]}")
 f1, f2 = st.columns(2)
 with f1:
-    st.image("https://i.ibb.co/v1s2T5L/furkan.png", width=150)
+    st.image("https://i.ibb.co/QfMdMQQ/furkan.jpg", width=150)
     st.markdown("**Osman Furkan Kaymaz**")
     st.markdown("[LinkedIn](https://www.linkedin.com/in/furkan-kaymaz-97736718b/)")
 with f2:
@@ -126,6 +121,15 @@ with f2:
 # İletişim
 st.markdown(f"### Contact")
 st.info(T['contact'][lang])
+
+# Yorum Kutusu
+st.markdown(f"### {T['comment'][lang]}")
+comment = st.text_area(label="", placeholder=T['comment_placeholder'][lang])
+if st.button(T['submit'][lang]):
+    if comment.strip():
+        st.success("Teşekkürler, yorumunuz alınmıştır.")
+    else:
+        st.warning("Lütfen boş yorum göndermeyiniz.")
 
 # Footer
 st.markdown(f"<div class='footer'>{T['footer'][lang]}</div>", unsafe_allow_html=True)
