@@ -145,7 +145,9 @@ T = {
     "limit_warning_car": {"TR": "⚠️ İnşaat & Montaj: Toplam sigorta bedeli 840 milyon TRY limitini aşıyor. Prim hesaplama bu limite göre yapılır.", "EN": "⚠️ Construction & Erection: Total sum insured exceeds the 840 million TRY limit. Premium calculation will be based on this limit."},
     "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
     "pd_premium": {"TR": "PD Primi", "EN": "PD Premium"},
-    "bi_premium": {"TR": "BI Primi", "EN": "BI Premium"}
+    "bi_premium": {"TR": "BI Primi", "EN": "BI Premium"},
+    "risk_group_type": {"TR": "Risk Grubu Türü", "EN": "Risk Group Type"},
+    "risk_group_type_help": {"TR": "Risk grubu türü A veya B olarak seçilir.", "EN": "Select risk group type as A or B."}
 }
 
 def tr(key: str) -> str:
@@ -572,12 +574,7 @@ else:
     st.markdown(f'<h3 class="section-header">{tr("car_header")}</h3>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        risk_group_type = st.selectbox(
-            tr("risk_group_type"),
-            ["RiskGrubuA", "RiskGrubuB"],
-            format_func=lambda x: "A" if x == "RiskGrubuA" else "B",
-            help=tr("risk_group_type_help")
-        )
+        risk_group_type = st.selectbox(tr("risk_group_type"), ["RiskGrubuA", "RiskGrubuB"], format_func=lambda x: "A" if x == "RiskGrubuA" else "B", key="risk_group_type", help=tr("risk_group_type_help"))
         risk_class = st.selectbox(tr("risk_class"), [1, 2, 3, 4, 5, 6, 7], help=tr("risk_class_help"))
         start_date = st.date_input(tr("start"), value=datetime.today())
         end_date = st.date_input(tr("end"), value=datetime.today() + timedelta(days=365))
