@@ -41,10 +41,15 @@ T = {
 st.markdown("""
 <style>
     .header {
-        background: url('https://i.ibb.co/PzWSdnQb/Logo.png') no-repeat center top;
-        background-size: 120px;
-        padding-top: 140px;
+        background-color: #E8F4FD;
+        padding: 2em;
         text-align: center;
+        border-radius: 12px;
+        margin-bottom: 1.5em;
+    }
+    .header img {
+        height: 100px;
+        margin-bottom: 1em;
     }
     .header h1 {
         font-size: 3em;
@@ -85,6 +90,7 @@ st.markdown("""
 # Başlık
 st.markdown("""
 <div class="header">
+    <img src="https://i.ibb.co/PzWSdnQb/Logo.png" alt="TariffEQ Logo" />
     <h1>TariffEQ</h1>
     <h3>{}</h3>
 </div>
@@ -109,7 +115,7 @@ with col3:
 st.markdown(f"### {T['founders'][lang]}")
 f1, f2 = st.columns(2)
 with f1:
-    st.image("https://i.ibb.co/99NWxnx/furkan.jpg", width=150)
+    st.image("https://i.ibb.co/v1s2T5L/furkan.png", width=150)
     st.markdown("**Osman Furkan Kaymaz**")
     st.markdown("[LinkedIn](https://www.linkedin.com/in/furkan-kaymaz-97736718b/)")
 with f2:
