@@ -94,7 +94,7 @@ T = {
     "decoration_sum": {"TR": "Dekorasyon Bedeli", "EN": "Decoration Sum Insured"},
     "decoration_sum_help": {"TR": "Dekorasyon için sigorta bedeli.", "EN": "Sum insured for decoration."},
     "commodity_sum": {"TR": "Emtea Bedeli", "EN": "Commodity Sum Insured"},
-    "commodity_sum_help": {"TR": "Emtea (ticari mallar) için sigorta bedeli.", "EN": "Sum insured for commodities (commercial goods)."},
+    "commodity_sum_help": {"TR": "Emtea (ticari mallar) için sigorta bedeli. Abonman esasına göre teminat altına alınıyorsa %40’ı dikkate alınır.", "EN": "Sum insured for commodities (commercial goods). If covered on a subscription basis, 40% is considered."},
     "safe_sum": {"TR": "Kasa Bedeli", "EN": "Safe Sum Insured"},
     "safe_sum_help": {"TR": "Kasa için sigorta bedeli.", "EN": "Sum insured for the safe."},
     "bi": {"TR": "Kar Kaybı Bedeli (BI)", "EN": "Business Interruption Sum Insured (BI)"},
@@ -111,6 +111,8 @@ T = {
     "koas_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
     "deduct": {"TR": "Muafiyet Oranı (%)", "EN": "Deductible (%)"},
     "deduct_help": {"TR": "Her hasarda bina sigorta bedeli üzerinden uygulanır. Min. %2, artırılabilir (max. %35 indirim).", "EN": "Applied per loss on the building sum insured. Min. 2%, can be increased (max. 35% discount)."},
+    "inflation_rate": {"TR": "Enflasyon Artış Oranı (%)", "EN": "Inflation Increase Rate (%)"},
+    "inflation_rate_help": {"TR": "Enflasyona karşı teminat artışı oranı. Tarife fiyatı bu oranın yarısı kadar artırılır.", "EN": "Rate of increase for inflation protection. Tariff rate is increased by half of this rate."},
     "btn_calc": {"TR": "Hesapla", "EN": "Calculate"},
     "min_premium": {"TR": "Minimum Deprem Primi", "EN": "Minimum Earthquake Premium"},
     "applied_rate": {"TR": "Uygulanan Oran (binde)", "EN": "Applied Rate (per mille)"},
@@ -337,33 +339,53 @@ def determine_group_params(locations_data):
         }
     return result
 
-def calculate_fire_premium(building_type, risk_group, currency, building, fixture, decoration, commodity, safe, bi, ec_fixed, ec_mobile, mk_fixed, mk_mobile, koas, deduct, fx_rate):
-    pd_sum_insured = (building + fixture + decoration + commodity + safe) * fx_rate
+def calculate_fire_premium(building_type, risk_group, currency, building, fixture, decoration, commodity, safe, bi, ec_fixed, ec_mobile, mk_fixed, mk_mobile, koas, deduct, fx_rate, inflation_rate):
+    # Calculate individual sums insured in TRY
+    building_sum_insured = building * fx_rate
+    fixture_sum_insured = fixture * fx_rate
+    decoration_sum_insured = decoration * fx_rate
+    commodity_sum_insured = commodity * fx_rate
+    safe_sum_insured = safe * fx_rate
     bi_sum_insured = bi * fx_rate
     ec_fixed_sum_insured = ec_fixed * fx_rate
     ec_mobile_sum_insured = ec_mobile * fx_rate
     mk_fixed_sum_insured = mk_fixed * fx_rate
     mk_mobile_sum_insured = mk_mobile * fx_rate
     
+    # Calculate total sum insured for PD (including EC and MK for limit check)
+    pd_sum_insured = (building_sum_insured + fixture_sum_insured + decoration_sum_insured + commodity_sum_insured + safe_sum_insured + ec_fixed_sum_insured + ec_mobile_sum_insured + mk_fixed_sum_insured + mk_mobile_sum_insured)
+    
+    # Base rate from tariff table
     rate = tarife_oranlari[building_type][risk_group - 1]
+    
+    # Adjust rate for inflation (increase by half of the inflation rate)
+    inflation_multiplier = 1 + (inflation_rate / 100) / 2
+    rate *= inflation_multiplier
     
     LIMIT_FIRE = 3_500_000_000
     LIMIT_EC_MK = 840_000_000
     
+    # Check total sum insured against the 3.5 billion TRY limit
+    if pd_sum_insured > LIMIT_FIRE:
+        st.warning(tr("limit_warning_fire_pd"))
+    
+    # PD Premium (excluding EC and MK for actual premium calculation, but included in limit check)
+    pd_sum_for_premium = (building_sum_insured + fixture_sum_insured + decoration_sum_insured + commodity_sum_insured + safe_sum_insured)
     koas_discount = koasurans_indirimi[koas]
     deduct_discount = muafiyet_indirimi[deduct]
     adjusted_rate_pd = rate * (1 - koas_discount) * (1 - deduct_discount)
     if pd_sum_insured > LIMIT_FIRE:
-        st.warning(tr("limit_warning_fire_pd"))
         adjusted_rate_pd = round(adjusted_rate_pd * (LIMIT_FIRE / pd_sum_insured), 6)
-    pd_premium = (pd_sum_insured * adjusted_rate_pd) / 1000
+    pd_premium = (pd_sum_for_premium * adjusted_rate_pd) / 1000
     
+    # BI Premium (no koas/deduct discount as per tariff)
     adjusted_rate_bi = rate
     if bi_sum_insured > LIMIT_FIRE:
         st.warning(tr("limit_warning_fire_bi"))
         adjusted_rate_bi = round(adjusted_rate_bi * (LIMIT_FIRE / bi_sum_insured), 6)
     bi_premium = (bi_sum_insured * adjusted_rate_bi) / 1000
     
+    # EC Premium
     ec_premium = 0.0
     ec_fixed_premium = 0.0
     ec_mobile_premium = 0.0
@@ -374,13 +396,14 @@ def calculate_fire_premium(building_type, risk_group, currency, building, fixtur
             ec_fixed_rate = round(ec_fixed_rate * (LIMIT_EC_MK / ec_fixed_sum_insured), 6)
         ec_fixed_premium = (ec_fixed_sum_insured * ec_fixed_rate) / 1000
     if ec_mobile > 0:
-        ec_mobile_rate = 2.00
+        ec_mobile_rate = 2.00 * inflation_multiplier  # Apply inflation to mobile rate as well
         if ec_mobile_sum_insured > LIMIT_EC_MK:
             st.warning(tr("limit_warning_ec"))
             ec_mobile_rate = round(ec_mobile_rate * (LIMIT_EC_MK / ec_mobile_sum_insured), 6)
         ec_mobile_premium = (ec_mobile_sum_insured * ec_mobile_rate) / 1000
     ec_premium = ec_fixed_premium + ec_mobile_premium
     
+    # MK Premium
     mk_premium = 0.0
     mk_fixed_premium = 0.0
     mk_mobile_premium = 0.0
@@ -391,7 +414,7 @@ def calculate_fire_premium(building_type, risk_group, currency, building, fixtur
             mk_fixed_rate = round(mk_fixed_rate * (LIMIT_EC_MK / mk_fixed_sum_insured), 6)
         mk_fixed_premium = (mk_fixed_sum_insured * mk_fixed_rate) / 1000
     if mk_mobile > 0:
-        mk_mobile_rate = 2.00
+        mk_mobile_rate = 2.00 * inflation_multiplier  # Apply inflation to mobile rate as well
         if mk_mobile_sum_insured > LIMIT_EC_MK:
             st.warning(tr("limit_warning_mk"))
             mk_mobile_rate = round(mk_mobile_rate * (LIMIT_EC_MK / mk_mobile_sum_insured), 6)
@@ -402,10 +425,15 @@ def calculate_fire_premium(building_type, risk_group, currency, building, fixtur
     
     return pd_premium, bi_premium, ec_premium, mk_premium, total_premium, rate
 
-def calculate_car_ear_premium(risk_group_type, risk_class, start_date, end_date, project, cpm, cpe, currency, koas, deduct, fx_rate):
+def calculate_car_ear_premium(risk_group_type, risk_class, start_date, end_date, project, cpm, cpe, currency, koas, deduct, fx_rate, inflation_rate):
     duration_months = calculate_months_difference(start_date, end_date)
     
     base_rate = tarife_oranlari[risk_group_type][risk_class - 1]
+    
+    # Adjust base rate for inflation (increase by half of the inflation rate)
+    inflation_multiplier = 1 + (inflation_rate / 100) / 2
+    base_rate *= inflation_multiplier
+    
     duration_multiplier = calculate_duration_multiplier(duration_months)
     koas_discount = koasurans_indirimi_car[koas]
     deduct_discount = muafiyet_indirimi_car[deduct]
@@ -420,7 +448,7 @@ def calculate_car_ear_premium(risk_group_type, risk_class, start_date, end_date,
     car_premium = (project_sum_insured * car_rate) / 1000
     
     cpm_sum_insured = cpm * fx_rate
-    cpm_rate = 1.25
+    cpm_rate = 1.25 * inflation_multiplier  # Apply inflation to CPM rate
     if cpm_sum_insured > LIMIT:
         st.warning(tr("limit_warning_car"))
         cpm_rate *= (LIMIT / cpm_sum_insured)
@@ -528,11 +556,13 @@ if calc_type == tr("calc_fire"):
             })
     
     st.markdown(f"#### {tr('coinsurance_deductible')}")
-    col5, col6 = st.columns(2)
+    col5, col6, col7 = st.columns(3)
     with col5:
         koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
     with col6:
         deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), index=4, help=tr("deduct_help"))
+    with col7:
+        inflation_rate = st.number_input(tr("inflation_rate"), min_value=0.0, value=0.0, step=0.1, help=tr("inflation_rate_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
         groups = determine_group_params(locations_data)
@@ -542,7 +572,7 @@ if calc_type == tr("calc_fire"):
                 data["building_type"], data["risk_group"], currency,
                 data["building"], data["fixture"], data["decoration"], data["commodity"], data["safe"],
                 data["bi"], data["ec_fixed"], data["ec_mobile"], data["mk_fixed"], data["mk_mobile"],
-                koas, deduct, fx_rate
+                koas, deduct, fx_rate, inflation_rate
             )
             total_premium += group_premium
             if currency != "TRY":
@@ -608,15 +638,17 @@ else:
             st.write(f"{tr('entered_value')}: {format_number(cpe, currency)}")
     
     st.markdown(f"### {tr('coinsurance_deductible')}")
-    col6, col7 = st.columns(2)
+    col6, col7, col8 = st.columns(3)
     with col6:
         koas = st.selectbox(tr("coins"), list(koasurans_indirimi_car.keys()), help=tr("coins_help"))
     with col7:
         deduct = st.selectbox(tr("ded"), sorted(list(muafiyet_indirimi_car.keys()), reverse=True), help=tr("ded_help"))
+    with col8:
+        inflation_rate = st.number_input(tr("inflation_rate"), min_value=0.0, value=0.0, step=0.1, help=tr("inflation_rate_help"))
     
     if st.button(tr("btn_calc"), key="car_calc"):
         car_premium, cpm_premium, cpe_premium, total_premium, applied_rate = calculate_car_ear_premium(
-            risk_group_type, risk_class, start_date, end_date, project, cpm, cpe, currency, koas, deduct, fx_rate
+            risk_group_type, risk_class, start_date, end_date, project, cpm, cpe, currency, koas, deduct, fx_rate, inflation_rate
         )
         if currency != "TRY":
             car_premium_converted = car_premium / fx_rate
