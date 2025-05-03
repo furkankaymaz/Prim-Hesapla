@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 # ------------------------------------------------------------
 # STREAMLIT CONFIG (must be first)
 # ------------------------------------------------------------
-st.set_page_config(page_title="TarifeX", layout="centered")
+st.set_page_config(page_title="TarifEQ", layout="centered")
 
 # Custom CSS for styling
 st.markdown("""
@@ -70,7 +70,7 @@ with st.container():
 
 # Language dictionary
 T = {
-    "title": {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplama Uygulaması", "EN": "TarifeX – Smart Insurance Premium Calculator"},
+    "title": {"TR": "TarifEQ – Akıllı Sigorta Prim Hesaplama Uygulaması", "EN": "TarifEQ – Smart Insurance Premium Calculator"},
     "subtitle": {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı için Uygulanacak Güncel Tarife", "EN": "Current Tariff for Earthquake and Volcanic Eruption Coverage"},
     "fire_header": {"TR": "Deprem Teminatı (PD & BI)", "EN": "Earthquake Coverage (PD & BI)"},
     "car_header": {"TR": "🏗️ İnşaat & Montaj Hesaplama", "EN": "🏗️ Construction & Erection Calculation"},
