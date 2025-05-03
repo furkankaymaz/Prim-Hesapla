@@ -511,13 +511,6 @@ if calc_type == tr("calc_fire"):
                 if mk_mobile > 0:
                     st.write(f"{tr('entered_value')}: {format_number(mk_mobile, currency)}")
             
-            st.markdown(f"#### {tr('coinsurance_deductible')}")
-            col5, col6 = st.columns(2)
-            with col5:
-                koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
-            with col6:
-                deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), help=tr("deduct_help"))
-            
             locations_data.append({
                 "group": group,
                 "building_type": building_type,
@@ -533,6 +526,13 @@ if calc_type == tr("calc_fire"):
                 "mk_fixed": mk_fixed,
                 "mk_mobile": mk_mobile
             })
+    
+    st.markdown(f"#### {tr('coinsurance_deductible')}")
+    col5, col6 = st.columns(2)
+    with col5:
+        koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
+    with col6:
+        deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), help=tr("deduct_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
         groups = determine_group_params(locations_data)
