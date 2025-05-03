@@ -9,7 +9,7 @@ st.set_page_config(
 
 # Dil seçimi
 lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
-st.sidebar.page_link("/pages/1_Tariffeq_Calculation.py", label="🚀 Hemen Hesapla / Calculate Now !")
+st.sidebar.page_link("/pages/1_Tariffeq_Calculation.py", label="🚀 Hemen Hesapla / Calculate Now !", disabled=True)  # Dosya yoksa devre dışı
 
 # Çeviri sözlüğü
 T = {
@@ -29,7 +29,7 @@ T = {
     "feature3": {"TR": "🤝 Reasürör ve Broker Dostu", "EN": "🤝 Reinsurer & Broker Friendly"},
     "founders": {"TR": "Kurucular", "EN": "Founders"},
     "contact": {
-        "TR": "Sorularınız için bize info@tariffeq.com adresinden ulaşabirsiniz.",
+        "TR": "Sorularınız için bize info@tariffeq.com adresinden ulaşabilirsiniz.",
         "EN": "For inquiries, contact us at info@tariffeq.com"
     },
     "footer": {
@@ -45,40 +45,48 @@ T = {
 st.markdown("""
 <style>
     .header {
-        background-color: #E8F4FD;
+        background: linear-gradient(135deg, #E8F4FD 0%, #D1E8FF 100%);
         padding: 2em;
         text-align: center;
         border-radius: 12px;
         margin-bottom: 1.5em;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }
     .header img {
-        height: 400px;
+        max-height: 400px;
         margin-bottom: 1em;
+        border-radius: 8px;
     }
     .header h1 {
         font-size: 3.2em;
         color: #2E86C1;
         margin-bottom: 0.2em;
+        font-weight: 700;
     }
     .header h3 {
         color: #5DADE2;
         font-weight: 400;
+        font-size: 1.5em;
     }
     .card {
-        background-color: #F0F4FA;
+        background: linear-gradient(135deg, #F0F4FA 0%, #E0E7FF 100%);
         padding: 1.5em;
         border-radius: 12px;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
         text-align: center;
         margin-bottom: 1em;
+        transition: transform 0.3s ease;
+    }
+    .card:hover {
+        transform: translateY(-5px);
     }
     .footer {
         text-align: center;
         font-size: 0.9em;
-        color: gray;
+        color: #64748B;
         margin-top: 2em;
         padding-top: 1em;
-        border-top: 1px solid #dee2e6;
+        border-top: 1px solid #E0E7FF;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -87,15 +95,15 @@ st.markdown("""
 st.markdown("""
 <div class="header">
     <img src="https://i.ibb.co/PzWSdnQb/Logo.png" alt="TariffEQ Logo" />
-    <h1>TariffEQ</h1>
+    <h1>{}</h1>
     <h3>{}</h3>
 </div>
-""".format(T["subtitle"][lang]), unsafe_allow_html=True)
+""".format(T["title"][lang], T["subtitle"][lang]), unsafe_allow_html=True)
 
 # Açıklama ve Başlat Butonu
 st.markdown(f"#### {T['desc'][lang]}")
 if st.button(T['start'][lang]):
-    st.switch_page("/pages/1_Tariffeq_Calculation.py")
+    st.warning("Hesaplama sayfasına yönlendirme için '1_Tariffeq_Calculation.py' dosyasının 'pages' klasöründe olduğundan emin olun.")
 
 # Neden TariffEQ
 st.markdown(f"### {T['why'][lang]}")
@@ -111,13 +119,17 @@ with col3:
 st.markdown(f"### {T['founders'][lang]}")
 f1, f2 = st.columns(2)
 with f1:
-    st.image("https://i.ibb.co/t8Wn3pd/furkan.jpg", width=150)
-    st.markdown("**Osman Furkan Kaymaz**")
-    st.markdown("[LinkedIn](https://www.linkedin.com/in/furkan-kaymaz-97736718b/)")
+    try:
+        st.image("https://i.ibb.co/t8Wn3pd/furkan.jpg", caption="Osman Furkan Kaymaz", use_container_width=False, width=150)
+        st.markdown(f"[LinkedIn](https://www.linkedin.com/in/furkan-kaymaz-97736718b/)", unsafe_allow_html=True)
+    except Exception:
+        st.warning("Furkan Kaymaz'ın fotoğrafı yüklenemedi. Lütfen URL'yi kontrol edin.")
 with f2:
-    st.image("https://i.ibb.co/K3ysQ1x/ubeydullah.jpg", width=150)
-    st.markdown("**Ubeydullah Ayvaz**")
-    st.markdown("[LinkedIn](https://www.linkedin.com/in/ubeydullah-ayvaz-762269143/)")
+    try:
+        st.image("https://i.ibb.co/K3ysQ1x/ubeydullah.jpg", caption="Ubeydullah Ayvaz", use_container_width=False, width=150)
+        st.markdown(f"[LinkedIn](https://www.linkedin.com/in/ubeydullah-ayvaz-762269143/)", unsafe_allow_html=True)
+    except Exception:
+        st.warning("Ubeydullah Ayvaz'ın fotoğrafı yüklenemedi. Lütfen URL'yi kontrol edin.")
 
 # İletişim
 st.markdown(f"### Contact")
@@ -125,7 +137,7 @@ st.info(T['contact'][lang])
 
 # Yorum Kutusu
 st.markdown(f"### {T['comment'][lang]}")
-comment = st.text_area(label="", placeholder=T['comment_placeholder'][lang])
+comment = st.text_area(label="", placeholder=T['comment_placeholder'][lang], height=100)
 if st.button(T['submit'][lang]):
     if comment.strip():
         st.success("Teşekkürler, yorumunuz alınmıştır.")
