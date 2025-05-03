@@ -270,7 +270,7 @@ sure_carpani_tablosu = {
     13: 1.05, 14: 1.10, 15: 1.15, 16: 1.20, 17: 1.25, 18: 1.30,
     19: 1.35, 20: 1.40, 21: 1.45, 22: 1.50, 23: 1.55, 24: 1.60,
     25: 1.65, 26: 1.70, 27: 1.74, 28: 1.78, 29: 1.82, 30: 1.86,
-    31: 1.90, 32: 1.94, 33: 1.98, 34: 2.02, 35: Unmount: 2.06, 36: 2.10
+    31: 1.90, 32: 1.94, 33: 1.98, 34: 2.02, 35: 2.06, 36: 2.10
 }
 
 # ------------------------------------------------------------
@@ -461,7 +461,7 @@ if calc_type == tr("calc_fire"):
     locations_data = []
     groups = [chr(65 + i) for i in range(num_locations)]  # A, B, C, ...
     for i in range(num_locations):
-        with st.expander(f"Lokasyon {i + 1}" if lang == "TR" else f"Location {i + 1}", expanded=(i == 0)):
+        with st.expander(f"Lokasyon {i + 1}" if lang == "TR" else f"Location {i + 1}"):
             col1, col2 = st.columns(2)
             with col1:
                 building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"], key=f"building_type_{i}", help=tr("building_type_help"))
@@ -532,7 +532,7 @@ if calc_type == tr("calc_fire"):
     with col5:
         koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
     with col6:
-        deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), index=4, help=tr("deduct_help"))
+        deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), help=tr("deduct_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
         groups = determine_group_params(locations_data)
