@@ -105,8 +105,8 @@ T = {
     "ec_mobile_help": {"TR": "Taşınabilir elektronik cihazlar için sigorta bedeli.", "EN": "Sum insured for mobile electronic devices."},
     "mk_fixed": {"TR": "Makine Kırılması Bedeli (Sabit)", "EN": "Machinery Breakdown Sum Insured (Fixed)"},
     "mk_fixed_help": {"TR": "Sabit makineler için sigorta bedeli.", "EN": "Sum insured for fixed machinery."},
-    "mk_mobile": {"TR": "Makine Kırılması Bedeli (Seyyar)", "EN": "Machinery Breakdown Sum Insured (Portable)"},
-    "mk_mobile_help": {"TR": "Seyyar makineler için sigorta bedeli.", "EN": "Sum insured for portable machinery."},
+    "mk_mobile": {"TR": "Makine Kırılması Bedeli (Taşınabilir)", "EN": "Machinery Breakdown Sum Insured (Mobile)"},
+    "mk_mobile_help": {"TR": "Taşınabilir makineler için sigorta bedeli.", "EN": "Sum insured for mobile machinery."},
     "koas": {"TR": "Koasürans Oranı", "EN": "Coinsurance Share"},
     "koas_help": {"TR": "Sigortalının hasara iştirak oranı. Min. %20 sigortalı üzerinde kalır. %60’a kadar artırılabilir (max. %50 indirim).", "EN": "Insured's share in the loss. Min. 20% remains with the insured. Can be increased to 60% (max. 50% discount)."},
     "deduct": {"TR": "Muafiyet Oranı (%)", "EN": "Deductible (%)"},
@@ -146,13 +146,8 @@ T = {
     "entered_value": {"TR": "Girilen Değer", "EN": "Entered Value"},
     "pd_premium": {"TR": "PD Primi", "EN": "PD Premium"},
     "bi_premium": {"TR": "BI Primi", "EN": "BI Premium"},
-    "risk_group_type": {"TR": "Risk Sınıfı", "EN": "Risk Class"},
-    "risk_group_type_help": {
-        "TR": "Risk Sınıfı A: Her türlü bina inşaatı, bina içi dekorasyon ve tadilat işleri, makine, teçhizat ve geçici baraka/yardımcı tesisler (yıllık). Risk Sınıfı B: Altyapı ve ağır mühendislik işleri: kara/demiryolu, tünel, köprü, viyadük, baraj, metro, havaalanı, liman vb. Endüstriyel tesisler: enerji santrali, iletim hattı, silo, kule, tank. Zemin ve temel işleri: iksa, istinat, zemin iyileştirme, dolgular. Sulama, kanalizasyon ve altyapı işleri. Peyzaj, saha düzenleme ve park-bahçe işleri. Montaj işleri ve A dışında kalan diğer inşaat türleri.",
-        "EN": "Risk Class A: All types of building construction, interior decoration and renovation works, machinery, equipment, and temporary sheds/support facilities (annual). Risk Class B: Infrastructure and heavy engineering works: roads/railways, tunnels, bridges, viaducts, dams, metro, airports, ports, etc. Industrial facilities: power plants, transmission lines, silos, towers, tanks. Ground and foundation works: shoring, retaining walls, ground improvement, fills. Irrigation, sewerage, and infrastructure works. Landscaping, site arrangement, and park-garden works. Assembly works and other construction types outside A."
-    },
-    "insurance_sums": {"TR": "Sigorta Bedelleri 📋", "EN": "Insurance Sums Insured 📋"},
-    "coinsurance_deductible": {"TR": "Koasürans / Muafiyet Oranı ⚖️", "EN": "Coinsurance / Deductible Rate ⚖️"}
+    "risk_group_type": {"TR": "Risk Grubu Türü", "EN": "Risk Group Type"},
+    "risk_group_type_help": {"TR": "Risk grubu türü A veya B olarak seçilir.", "EN": "Select risk group type as A or B."}
 }
 
 def tr(key: str) -> str:
@@ -472,7 +467,7 @@ if calc_type == tr("calc_fire"):
                     currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"], key="fire_currency")
                     fx_rate, fx_info = fx_input(currency, "fire")
             
-            st.markdown(f"#### {tr('insurance_sums')}")
+            st.markdown("#### Sigorta Bedelleri 📋")
             if currency != "TRY":
                 st.info(fx_info)
             
@@ -527,7 +522,7 @@ if calc_type == tr("calc_fire"):
                 "mk_mobile": mk_mobile
             })
     
-    st.markdown(f"#### {tr('coinsurance_deductible')}")
+    st.markdown("#### Koasürans / Muafiyet Oranı ⚖️")
     col5, col6 = st.columns(2)
     with col5:
         koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
@@ -589,7 +584,7 @@ else:
         currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"])
         fx_rate, fx_info = fx_input(currency, "car")
     
-    st.markdown(f"### {tr('insurance_sums')}")
+    st.markdown("### SİGORTA BEDELLERİ")
     if currency != "TRY":
         st.info(fx_info)
     
@@ -607,7 +602,7 @@ else:
         if cpe > 0:
             st.write(f"{tr('entered_value')}: {format_number(cpe, currency)}")
     
-    st.markdown(f"### {tr('coinsurance_deductible')}")
+    st.markdown("### İNDIRIM ORANLARI")
     col6, col7 = st.columns(2)
     with col6:
         koas = st.selectbox(tr("coins"), list(koasurans_indirimi_car.keys()), help=tr("coins_help"))
