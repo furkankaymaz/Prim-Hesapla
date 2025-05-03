@@ -1,7 +1,7 @@
 import streamlit as st
 
-# Sayfa yapılandırması
-st.set_page_config(page_title="Tariffeq - Smart Insurance Calculator", page_icon="📊", layout="wide")
+# Sayfa ayarı
+st.set_page_config(page_title="Tariffeq - Smart Insurance Calculator", layout="wide")
 
 # Dil seçimi
 lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
@@ -9,189 +9,118 @@ lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True
 # Çeviri sözlüğü
 T = {
     "title": {"TR": "Tariffeq", "EN": "Tariffeq"},
-    "subtitle": {"TR": "Akıllı Sigorta Prim Hesaplama Çözümünüz", "EN": "Your Smart Insurance Premium Solution"},
-    "welcome": {"TR": "### Hoş Geldiniz!", "EN": "### Welcome!"},
-    "welcome_text": {
-        "TR": "Tariffeq, işletmenizin sigorta ihtiyaçlarını hızlı ve doğru bir şekilde hesaplamanıza olanak tanır. Deprem, inşaat ve daha birçok alanda prim hesaplamalarınızı kolayca yapın!",
-        "EN": "Tariffeq enables you to quickly and accurately calculate your business insurance needs. Easily compute premiums for earthquake, construction, and more!"
+    "subtitle": {
+        "TR": "Akıllı Sigorta Prim Hesaplama Platformu",
+        "EN": "Smart Insurance Premium Calculation Platform"
     },
-    "start_button": {"TR": "Hesaplamaya Başla", "EN": "Start Calculation"},
-    "start_message": {"TR": "Hesaplama sayfasına yönlendiriliyorsunuz...", "EN": "Redirecting to the calculation page..."},
-    "why_title": {"TR": "### Neden Tariffeq?", "EN": "### Why Tariffeq?"},
-    "feature1_title": {"TR": "**Hızlı ve Güvenilir**", "EN": "**Fast & Reliable**"},
-    "feature1_text": {"TR": "Prim hesaplamalarınızı saniyeler içinde yapın.", "EN": "Perform premium calculations in seconds."},
-    "feature2_title": {"TR": "**Kapsamlı Teminatlar**", "EN": "**Comprehensive Coverage**"},
-    "feature2_text": {"TR": "Deprem, yangın, inşaat ve daha fazlası için destek.", "EN": "Support for earthquake, fire, construction, and more."},
-    "feature3_title": {"TR": "**Kullanıcı Dostu**", "EN": "**User-Friendly**"},
-    "feature3_text": {"TR": "Basit arayüzle kolay kullanım.", "EN": "Easy to use with a simple interface."},
-    "contact_title": {"TR": "### Bizimle İletişime Geçin", "EN": "### Contact Us"},
-    "contact_text": {"TR": "Sorularınız mı var? Bize ulaşın: **info@tariffeq.com**", "EN": "Have questions? Reach us at: **info@tariffeq.com**"},
-    "founders_title": {"TR": "### Kurucularımız", "EN": "### Our Founders"},
-    "footer": {"TR": "© 2025 Tariffeq. Tüm Hakları Saklıdır.", "EN": "© 2025 Tariffeq. All Rights Reserved."}
+    "start": {"TR": "Hesaplamaya Başla", "EN": "Start Calculation"},
+    "desc": {
+        "TR": "Tariffeq, deprem, inşaat ve ticari rizikolar için minimum prim hesaplamalarını saniyeler içinde yapmanızı sağlar.",
+        "EN": "Tariffeq enables you to calculate minimum insurance premiums for earthquake, construction, and commercial risks within seconds."
+    },
+    "why": {"TR": "Neden Tariffeq?", "EN": "Why Tariffeq?"},
+    "feature1": {"TR": "✨ Kolay ve Hızlı Kullanım", "EN": "✨ Easy & Fast Use"},
+    "feature2": {"TR": "⚖️ Teknik Doğruluk", "EN": "⚖️ Technical Accuracy"},
+    "feature3": {"TR": "🤝 Reasürör ve Broker Dostu", "EN": "🤝 Reinsurer & Broker Friendly"},
+    "founders": {"TR": "Kurucular", "EN": "Founders"},
+    "contact": {
+        "TR": "Sorularınız için bize info@tariffeq.com adresinden ulaşabirsiniz.",
+        "EN": "For inquiries, contact us at info@tariffeq.com"
+    },
+    "footer": {
+        "TR": "© 2025 Tariffeq. Tüm Hakları Saklıdır.",
+        "EN": "© 2025 Tariffeq. All rights reserved."
+    }
 }
 
-# CSS ile stil ekleme (geliştirilmiş profesyonel tasarım)
+# CSS
 st.markdown("""
-<style>
-    .header {
+    <style>
+    .main-title {
+        font-size: 3.2em;
+        font-weight: bold;
+        color: #2E86C1;
         text-align: center;
-        color: #1E3A8A;
-        font-size: 3.5em;
-        font-weight: 700;
-        background: linear-gradient(90deg, #1E3A8A 0%, #3B82F6 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        margin-bottom: 0.3em;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 0.1em;
     }
-    .subheader {
+    .subtitle {
+        font-size: 1.5em;
+        color: #5DADE2;
         text-align: center;
-        color: #64748B;
-        font-size: 1.8em;
-        font-weight: 500;
         margin-bottom: 1.5em;
     }
     .section {
-        background: linear-gradient(135deg, #F1F5F9 0%, #E0E7FF 100%);
-        padding: 2.5em;
-        border-radius: 15px;
-        margin-bottom: 1.5em;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease;
-    }
-    .section:hover {
-        transform: translateY(-5px);
-    }
-    .founder-section {
-        background: linear-gradient(135deg, #E0E7FF 0%, #F1F5F9 100%);
+        background-color: #f8f9fa;
+        border-radius: 12px;
         padding: 2em;
-        border-radius: 15px;
-        margin-bottom: 1.5em;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        text-align: center;
-    }
-    .founder-card {
-        display: inline-block;
-        margin: 1em;
-        padding: 1.5em;
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease;
-    }
-    .founder-card:hover {
-        transform: scale(1.05);
+        margin: 1em 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
     .founder-img {
         border-radius: 50%;
-        width: 150px;
         height: 150px;
+        width: 150px;
         object-fit: cover;
-    }
-    .button {
-        display: flex;
-        justify-content: center;
-        margin-top: 1em;
-    }
-    .stButton > button {
-        background-color: #3B82F6;
-        color: white;
-        border: none;
-        padding: 0.75em 2em;
-        border-radius: 10px;
-        font-size: 1.1em;
-        font-weight: 500;
-        transition: background-color 0.3s ease;
-    }
-    .stButton > button:hover {
-        background-color: #1E40AF;
-        color: white;
+        border: 3px solid #2E86C1;
+        margin-bottom: 0.5em;
     }
     .footer {
         text-align: center;
-        color: #64748B;
         font-size: 0.9em;
+        color: gray;
         margin-top: 2em;
-        padding: 1em 0;
-        border-top: 1px solid #E0E7FF;
+        padding-top: 1em;
+        border-top: 1px solid #dee2e6;
     }
-    a {
-        color: #3B82F6;
-        text-decoration: none;
-    }
-    a:hover {
-        text-decoration: underline;
-    }
-</style>
+    </style>
 """, unsafe_allow_html=True)
 
-# Başlık ve Alt Başlık
-st.markdown(f'<h1 class="header">{T["title"][lang]}</h1>', unsafe_allow_html=True)
-st.markdown(f'<p class="subheader">{T["subtitle"][lang]}</p>', unsafe_allow_html=True)
+# Header
+st.markdown(f"<div class='main-title'>{T['title'][lang]}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='subtitle'>{T['subtitle'][lang]}</div>", unsafe_allow_html=True)
 
-# Logo veya Görsel
-try:
-    st.image("https://i.ibb.co/PzWSdnQb/Logo.png", use_column_width=True)
-except Exception:
-    st.warning("Logo yüklenemedi. Lütfen resim URL'sini kontrol edin.")
+st.image("https://i.ibb.co/PzWSdnQb/Logo.png", use_column_width=True)
 
-# Giriş Bölümü
+# Description
 with st.container():
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    st.markdown(f'{T["welcome"][lang]}', unsafe_allow_html=True)
-    st.write(f'{T["welcome_text"][lang]}')
-    st.markdown('<div class="button">', unsafe_allow_html=True)
-    if st.button(T["start_button"][lang]):
-        st.write(T["start_message"][lang])
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f"<div class='section'>", unsafe_allow_html=True)
+    st.write(f"### {T['desc'][lang]}")
+    if st.button(T['start'][lang]):
+        st.success("Hesaplama sayfasına yönlendiriliyorsunuz...")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# Özellikler Bölümü
+# Features
 with st.container():
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    st.markdown(f'{T["why_title"][lang]}', unsafe_allow_html=True)
+    st.markdown(f"<div class='section'>", unsafe_allow_html=True)
+    st.write(f"### {T['why'][lang]}")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown(f'{T["feature1_title"][lang]}', unsafe_allow_html=True)
-        st.write(f'{T["feature1_text"][lang]}')
+        st.info(T['feature1'][lang])
     with col2:
-        st.markdown(f'{T["feature2_title"][lang]}', unsafe_allow_html=True)
-        st.write(f'{T["feature2_text"][lang]}')
+        st.info(T['feature2'][lang])
     with col3:
-        st.markdown(f'{T["feature3_title"][lang]}', unsafe_allow_html=True)
-        st.write(f'{T["feature3_text"][lang]}')
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.info(T['feature3'][lang])
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# Kurucular Bölümü
+# Founders
 with st.container():
-    st.markdown('<div class="founder-section">', unsafe_allow_html=True)
-    st.markdown(f'{T["founders_title"][lang]}', unsafe_allow_html=True)
+    st.markdown(f"<div class='section'>", unsafe_allow_html=True)
+    st.write(f"### {T['founders'][lang]}")
     col1, col2 = st.columns(2)
     with col1:
-        try:
-            st.markdown('<div class="founder-card">', unsafe_allow_html=True)
-            st.image("https://ibb.co/99NWxnxH", caption="Osman Furkan Kaymaz", use_column_width=False, output_format="auto", width=150, clamp=True)
-            st.markdown(f'<a href="https://www.linkedin.com/in/furkan-kaymaz-97736718b/" target="_blank">Osman Furkan Kaymaz</a>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        except Exception:
-            st.warning("Osman Furkan Kaymaz'ın fotoğrafı yüklenemedi.")
+        st.image("https://i.ibb.co/99NWxnx/furkan.jpg", caption="Furkan Kaymaz", use_column_width=False, width=150)
+        st.markdown("[LinkedIn](https://www.linkedin.com/in/furkan-kaymaz-97736718b/)")
     with col2:
-        try:
-            st.markdown('<div class="founder-card">', unsafe_allow_html=True)
-            st.image("https://ibb.co/K3ysQ1x", caption="Ubeydullah Ayvaz", use_column_width=False, output_format="auto", width=150, clamp=True)
-            st.markdown(f'<a href="https://www.linkedin.com/in/ubeydullah-ayvaz-762269143/" target="_blank">Ubeydullah Ayvaz</a>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        except Exception:
-            st.warning("Ubeydullah Ayvaz'ın fotoğrafı yüklenemedi.")
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.image("https://i.ibb.co/K3ysQ1x/ubeydullah.jpg", caption="Ubeydullah Ayvaz", use_column_width=False, width=150)
+        st.markdown("[LinkedIn](https://www.linkedin.com/in/ubeydullah-ayvaz-762269143/)")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# İletişim Bölümü
+# Contact
 with st.container():
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    st.markdown(f'{T["contact_title"][lang]}', unsafe_allow_html=True)
-    st.write(f'{T["contact_text"][lang]}')
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f"<div class='section'>", unsafe_allow_html=True)
+    st.write(f"### Contact")
+    st.write(T['contact'][lang])
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # Footer
-st.markdown(f'<div class="footer">{T["footer"][lang]}</div>', unsafe_allow_html=True)
+st.markdown(f"<div class='footer'>{T['footer'][lang]}</div>", unsafe_allow_html=True)
