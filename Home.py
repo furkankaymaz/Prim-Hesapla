@@ -1,17 +1,11 @@
 import streamlit as st
 
-# Sayfa Ayarları
-st.set_page_config(
-    page_title="TariffEQ – Smart Insurance Calculator",
-    layout="wide",
-    page_icon="📊"
-)
-
 # Dil seçimi
 lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
 
 # Çeviri sözlüğü
 T = {
+    "page_title": {"TR": "Ana Sayfa", "EN": "Home"},
     "title": {"TR": "TariffEQ", "EN": "TariffEQ"},
     "subtitle": {
         "TR": "Akıllı Sigorta Prim Hesaplama Platformu",
@@ -22,8 +16,6 @@ T = {
         "TR": "TariffEQ, deprem, inşaat ve ticari rizikolar için minimum prim hesaplamalarını saniyeler içinde yapmanızı sağlar.",
         "EN": "TariffEQ enables you to calculate minimum insurance premiums for earthquake, construction, and commercial risks within seconds."
     },
-    "home": {"TR": "Ana Sayfa", "EN": "Home"},
-    "calc": {"TR": "🚀 Hemen Hesapla", "EN": "🚀 Calculate Now"},
     "why": {"TR": "TariffEQ Nedir?", "EN": "What is TariffEQ?"},
     "feature1": {"TR": "⚡ Kolay ve Hızlı Kullanım", "EN": "⚡ Easy & Fast Use"},
     "feature2": {"TR": "📐 Teknik Doğruluk", "EN": "📐 Technical Accuracy"},
@@ -42,9 +34,12 @@ T = {
     "submit": {"TR": "Gönder", "EN": "Submit"}
 }
 
-# Sidebar menü başlıkları
-st.sidebar.header(T["home"][lang])
-st.sidebar.header(T["calc"][lang])
+# Sayfa Ayarları (page_title dinamik olarak dil seçimine göre değişiyor)
+st.set_page_config(
+    page_title=T["page_title"][lang],
+    layout="wide",
+    page_icon="📊"
+)
 
 # Özel CSS
 st.markdown("""
