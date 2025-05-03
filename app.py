@@ -473,7 +473,7 @@ st.markdown(f'<h1 class="main-title">🏷️ {tr("title")}</h1>', unsafe_allow_h
 st.markdown(f'<h3 class="subtitle">{tr("subtitle")}</h3>', unsafe_allow_html=True)
 st.markdown('<p class="founders">Founders: Ubeydullah Ayvaz & Furkan Kaymaz</p>', unsafe_allow_html=True)
 
-st.image("https://i.imgur.com/iA8pLRD.jpg", caption=tr("title"))
+st.image("https://imgur.com/a/GoZ171K", caption=tr("title"))
 
 # Main Content
 st.markdown('<h2 class="section-header">📌 ' + ("Hesaplama Yap" if lang == "TR" else "Perform Calculation") + '</h2>', unsafe_allow_html=True)
