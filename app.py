@@ -72,10 +72,10 @@ with st.container():
 T = {
     "title": {"TR": "TarifeX – Akıllı Sigorta Prim Hesaplama Uygulaması", "EN": "TarifeX – Smart Insurance Premium Calculator"},
     "subtitle": {"TR": "Deprem ve Yanardağ Püskürmesi Teminatı için Uygulanacak Güncel Tarife", "EN": "Current Tariff for Earthquake and Volcanic Eruption Coverage"},
-    "fire_header": {"TR": "🔥 Yangın Sigortası Hesaplama", "EN": "🔥 Fire Insurance Calculation"},
+    "fire_header": {"TR": "Deprem Teminatı (PD & BI)", "EN": "Earthquake Coverage (PD & BI)"},
     "car_header": {"TR": "🏗️ İnşaat & Montaj Hesaplama", "EN": "🏗️ Construction & Erection Calculation"},
     "select_calc": {"TR": "Hesaplama Türünü Seçin", "EN": "Select Calculation Type"},
-    "calc_fire": {"TR": "Yangın Sigortası - Ticari Sınai Rizikolar (PD & BI)", "EN": "Fire Insurance – Commercial / Industrial (PD & BI)"},
+    "calc_fire": {"TR": "Deprem Teminatı - Ticari Sınai Rizikolar (PD & BI)", "EN": "Earthquake Coverage – Commercial / Industrial (PD & BI)"},
     "calc_car": {"TR": "İnşaat & Montaj (CAR & EAR)", "EN": "Construction & Erection (CAR & EAR)"},
     "num_locations": {"TR": "Lokasyon Sayısı", "EN": "Number of Locations"},
     "num_locations_help": {"TR": "Hesaplama yapılacak lokasyon sayısını girin (1-10).", "EN": "Enter the number of locations to calculate (1-10)."},
@@ -149,7 +149,7 @@ T = {
 }
 
 def tr(key: str) -> str:
-    return T[key][lang]
+    return T.get(key, {}).get(lang, key)
 
 # ------------------------------------------------------------
 # 1) TCMB FX MODULE
@@ -465,7 +465,7 @@ if calc_type == tr("calc_fire"):
                     currency = st.selectbox(tr("currency"), ["TRY", "USD", "EUR"], key="fire_currency")
                     fx_rate, fx_info = fx_input(currency, "fire")
             
-            st.markdown("#### SİGORTA BEDELLERİ")
+            st.markdown("#### Sigorta Bedelleri 📋")
             if currency != "TRY":
                 st.info(fx_info)
             
@@ -480,6 +480,9 @@ if calc_type == tr("calc_fire"):
                 decoration = st.number_input(tr("decoration_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"decoration_{i}", help=tr("decoration_sum_help"))
                 if decoration > 0:
                     st.write(f"{tr('entered_value')}: {format_number(decoration, currency)}")
+                bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, key=f"bi_{i}", help=tr("bi_help"))
+                if bi > 0:
+                    st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
             with col4:
                 commodity = st.number_input(tr("commodity_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"commodity_{i}", help=tr("commodity_sum_help"))
                 if commodity > 0:
@@ -487,9 +490,6 @@ if calc_type == tr("calc_fire"):
                 safe = st.number_input(tr("safe_sum"), min_value=0.0, value=0.0, step=1000.0, key=f"safe_{i}", help=tr("safe_sum_help"))
                 if safe > 0:
                     st.write(f"{tr('entered_value')}: {format_number(safe, currency)}")
-                bi = st.number_input(tr("bi"), min_value=0.0, value=0.0, step=1000.0, key=f"bi_{i}", help=tr("bi_help"))
-                if bi > 0:
-                    st.write(f"{tr('entered_value')}: {format_number(bi, currency)}")
             with col5:
                 ec_fixed = st.number_input(tr("ec_fixed"), min_value=0.0, value=0.0, step=1000.0, key=f"ec_fixed_{i}", help=tr("ec_fixed_help"))
                 if ec_fixed > 0:
@@ -520,7 +520,7 @@ if calc_type == tr("calc_fire"):
                 "mk_mobile": mk_mobile
             })
     
-    st.markdown("### İNDIRIM ORANLARI")
+    st.markdown("#### Koasürans / Muafiyet Oranı ⚖️")
     col5, col6 = st.columns(2)
     with col5:
         koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
