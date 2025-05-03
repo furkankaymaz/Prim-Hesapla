@@ -26,6 +26,7 @@ T = {
     "feature3_text": {"TR": "Basit arayüzle kolay kullanım.", "EN": "Easy to use with a simple interface."},
     "contact_title": {"TR": "### Bizimle İletişime Geçin", "EN": "### Contact Us"},
     "contact_text": {"TR": "Sorularınız mı var? Bize ulaşın: **info@tariffeq.com**", "EN": "Have questions? Reach us at: **info@tariffeq.com**"},
+    "founders_title": {"TR": "### Kurucularımız", "EN": "### Our Founders"},
     "footer": {"TR": "© 2025 Tariffeq. Tüm Hakları Saklıdır.", "EN": "© 2025 Tariffeq. All Rights Reserved."}
 }
 
@@ -62,6 +63,32 @@ st.markdown("""
     .section:hover {
         transform: translateY(-5px);
     }
+    .founder-section {
+        background: linear-gradient(135deg, #E0E7FF 0%, #F1F5F9 100%);
+        padding: 2em;
+        border-radius: 15px;
+        margin-bottom: 1.5em;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    .founder-card {
+        display: inline-block;
+        margin: 1em;
+        padding: 1.5em;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+    }
+    .founder-card:hover {
+        transform: scale(1.05);
+    }
+    .founder-img {
+        border-radius: 50%;
+        width: 150px;
+        height: 150px;
+        object-fit: cover;
+    }
     .button {
         display: flex;
         justify-content: center;
@@ -89,6 +116,13 @@ st.markdown("""
         padding: 1em 0;
         border-top: 1px solid #E0E7FF;
     }
+    a {
+        color: #3B82F6;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -96,7 +130,7 @@ st.markdown("""
 st.markdown(f'<h1 class="header">{T["title"][lang]}</h1>', unsafe_allow_html=True)
 st.markdown(f'<p class="subheader">{T["subtitle"][lang]}</p>', unsafe_allow_html=True)
 
-# Logo veya Görsel (resim yüklenmezse hata ayıklaması için kontrol)
+# Logo veya Görsel
 try:
     st.image("https://i.ibb.co/PzWSdnQb/Logo.png", use_column_width=True)
 except Exception:
@@ -127,6 +161,29 @@ with st.container():
     with col3:
         st.markdown(f'{T["feature3_title"][lang]}', unsafe_allow_html=True)
         st.write(f'{T["feature3_text"][lang]}')
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Kurucular Bölümü
+with st.container():
+    st.markdown('<div class="founder-section">', unsafe_allow_html=True)
+    st.markdown(f'{T["founders_title"][lang]}', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        try:
+            st.markdown('<div class="founder-card">', unsafe_allow_html=True)
+            st.image("https://ibb.co/99NWxnxH", caption="Osman Furkan Kaymaz", use_column_width=False, output_format="auto", width=150, clamp=True)
+            st.markdown(f'<a href="https://www.linkedin.com/in/furkan-kaymaz-97736718b/" target="_blank">Osman Furkan Kaymaz</a>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        except Exception:
+            st.warning("Osman Furkan Kaymaz'ın fotoğrafı yüklenemedi.")
+    with col2:
+        try:
+            st.markdown('<div class="founder-card">', unsafe_allow_html=True)
+            st.image("https://ibb.co/K3ysQ1x", caption="Ubeydullah Ayvaz", use_column_width=False, output_format="auto", width=150, clamp=True)
+            st.markdown(f'<a href="https://www.linkedin.com/in/ubeydullah-ayvaz-762269143/" target="_blank">Ubeydullah Ayvaz</a>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        except Exception:
+            st.warning("Ubeydullah Ayvaz'ın fotoğrafı yüklenemedi.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # İletişim Bölümü
