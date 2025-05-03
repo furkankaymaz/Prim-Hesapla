@@ -9,7 +9,8 @@ st.set_page_config(
 
 # Dil seçimi
 lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
-st.sidebar.page_link("/pages/1_Tariffeq_Calculation.py", label="🚀 Hemen Hesapla / Calculate Now !", disabled=True)  # Dosya yoksa devre dışı
+# Doğru dosya yoluna güncellendi
+st.sidebar.page_link("pages/Hesaplama.py", label="🚀 Hemen Hesapla / Calculate Now !")
 
 # Çeviri sözlüğü
 T = {
@@ -103,7 +104,10 @@ st.markdown("""
 # Açıklama ve Başlat Butonu
 st.markdown(f"#### {T['desc'][lang]}")
 if st.button(T['start'][lang]):
-    st.warning("Hesaplama sayfasına yönlendirme için '1_Tariffeq_Calculation.py' dosyasının 'pages' klasöründe olduğundan emin olun.")
+    try:
+        st.switch_page("pages/Hesaplama.py")
+    except Exception:
+        st.warning("Hesaplama sayfasına yönlendirme için 'Hesaplama.py' dosyasının 'pages' klasöründe olduğundan emin olun.")
 
 # Neden TariffEQ
 st.markdown(f"### {T['why'][lang]}")
