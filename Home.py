@@ -9,8 +9,6 @@ st.set_page_config(
 
 # Dil seçimi
 lang = st.sidebar.radio("Language / Dil", ["TR", "EN"], index=0, horizontal=True)
-# Doğru dosya yoluna güncellendi
-st.sidebar.page_link("pages/Hesaplama.py", label="🚀 Hemen Hesapla / Calculate Now !")
 
 # Çeviri sözlüğü
 T = {
@@ -104,10 +102,8 @@ st.markdown("""
 # Açıklama ve Başlat Butonu
 st.markdown(f"#### {T['desc'][lang]}")
 if st.button(T['start'][lang]):
-    try:
-        st.switch_page("pages/Hesaplama.py")
-    except Exception:
-        st.warning("Hesaplama sayfasına yönlendirme için 'Hesaplama.py' dosyasının 'pages' klasöründe olduğundan emin olun.")
+    st.session_state.lang = lang
+    st.switch_page("pages/Hesaplama.py")
 
 # Neden TariffEQ
 st.markdown(f"### {T['why'][lang]}")
@@ -124,7 +120,7 @@ st.markdown(f"### {T['founders'][lang]}")
 f1, f2 = st.columns(2)
 with f1:
     try:
-        st.image("https://i.ibb.co/t8Wn3pd/furkan.jpg", caption="Osman Furkan Kaymaz", use_container_width=False, width=150)
+        st.image("https://i.imgur.com/d0JoyE1.jpeg", caption="Osman Furkan Kaymaz", use_container_width=False, width=150)
         st.markdown(f"[LinkedIn](https://www.linkedin.com/in/furkan-kaymaz-97736718b/)", unsafe_allow_html=True)
     except Exception:
         st.warning("Furkan Kaymaz'ın fotoğrafı yüklenemedi. Lütfen URL'yi kontrol edin.")
@@ -137,7 +133,7 @@ with f2:
 
 # İletişim
 st.markdown(f"### Contact")
-st.info(T['contact'][lang])
+st.info("LinkedIn’den ulaşabilirsiniz: [LinkedIn](https://www.linkedin.com/company/tariffeq)")
 
 # Yorum Kutusu
 st.markdown(f"### {T['comment'][lang]}")
