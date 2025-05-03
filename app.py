@@ -461,7 +461,7 @@ if calc_type == tr("calc_fire"):
     locations_data = []
     groups = [chr(65 + i) for i in range(num_locations)]  # A, B, C, ...
     for i in range(num_locations):
-        with st.expander(f"Lokasyon {i + 1}" if lang == "TR" else f"Location {i + 1}"):
+        with st.expander(f"Lokasyon {i + 1}" if lang == "TR" else f"Location {i + 1}", expanded=True if i == 0 else False):
             col1, col2 = st.columns(2)
             with col1:
                 building_type = st.selectbox(tr("building_type"), ["Betonarme", "Diğer"], key=f"building_type_{i}", help=tr("building_type_help"))
@@ -532,7 +532,7 @@ if calc_type == tr("calc_fire"):
     with col5:
         koas = st.selectbox(tr("koas"), list(koasurans_indirimi.keys()), help=tr("koas_help"))
     with col6:
-        deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), help=tr("deduct_help"))
+        deduct = st.selectbox(tr("deduct"), sorted(list(muafiyet_indirimi.keys()), reverse=True), index=4, help=tr("deduct_help"))
     
     if st.button(tr("btn_calc"), key="fire_calc"):
         groups = determine_group_params(locations_data)
