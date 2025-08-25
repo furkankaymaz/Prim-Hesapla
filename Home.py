@@ -23,7 +23,7 @@
 # 3. Dosyanın içine API anahtarınızı ekleyin:
 #    GEMINI_API_KEY = "AIzaSy...OTOx1M"
 # 4. Uygulamayı çalıştırın: streamlit run app.py (bu dosyanın adı app.py ise)
-
+import plotly.express as px
 import streamlit as st
 import pandas as pd
 from dataclasses import dataclass
