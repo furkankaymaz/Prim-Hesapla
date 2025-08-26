@@ -8,28 +8,21 @@
 # için net hasar ve tazminat hesaplamalarını yaparak, en uygun poliçe
 # yapısının görsel olarak analiz edilmesini sağlar.
 #
-# Çalışma Mantığı:
-# 1. Girdiler sol kenar çubuğundan alınır.
-# 2. Google Gemini API anahtarı Streamlit Secrets'tan okunur.
-#    - Anahtar varsa: Faaliyete özel, detaylı AI raporu üretilir.
-#    - Anahtar yoksa: Güvenli, standart bir senaryo metni gösterilir.
-# 3. Tüm olası poliçe alternatifleri için hasar ve tazminat hesaplanır.
-# 4. Sonuçlar; AI Raporu, ana metrikler ve sekmeli analiz alanında
-#    (Tablo ve interaktif Grafik) kullanıcıya sunulur.
-#
 # Kurulum:
-# 1. Gerekli kütüphaneleri yükleyin: pip install streamlit pandas google-generativeai
-# 2. Proje dizininizde .streamlit/secrets.toml adında bir dosya oluşturun.
-# 3. Dosyanın içine API anahtarınızı ekleyin:
+# 1. Gerekli kütüphaneleri yükleyin: pip install streamlit pandas plotly google-generativeai
+# 2. Uygulamayı Streamlit Community Cloud'da yayınladıktan sonra,
+#    "Manage app" -> "Settings" -> "Secrets" bölümüne API anahtarınızı ekleyin:
 #    GEMINI_API_KEY = "AIzaSy...OTOx1M"
-# 4. Uygulamayı çalıştırın: streamlit run app.py (bu dosyanın adı app.py ise)
-import plotly.express as px
+# 3. Uygulama otomatik olarak yeniden başlayacaktır.
+
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-# --- AI İÇİN KORUMALI IMPORT VE KONFİGÜRASYON ---
+# --- AI İÇİN KORUMALI IMPORT VE GÜVENLİ KONFİGÜRASYON ---
+_GEMINI_AVAILABLE = False
 try:
     import google.generativeai as genai
     # Streamlit'in Secrets Management özelliğini kullanarak API anahtarını güvenli bir şekilde al
@@ -150,7 +143,7 @@ def generate_report(s: ScenarioInputs, pd_ratio: float, bi_days: int) -> str:
 
 **İş Durması (BI):** Maddi hasarın onarımı ve operasyonların yeniden stabil hale gelmesi için tahmini kesinti süresi **{bi_days} gündür**. Bu süre, tedarik zinciri ve alternatif tesis imkanlarına göre değişiklik gösterebilir.
 
-> *Bu rapor, AI servisinin aktif olmaması nedeniyle standart şablon kullanılarak oluşturulmuştur. Lütfen `.streamlit/secrets.toml` dosyanıza `GEMINI_API_KEY` ekleyin.*"""
+> *Bu rapor, AI servisinin aktif olmaması nedeniyle standart şablon kullanılarak oluşturulmuştur. Lütfen Streamlit ayarlarınızın "Secrets" bölümüne `GEMINI_API_KEY` ekleyin.*"""
         else:
             return f"""**Earthquake Damage Assessment (Expected Scenario)**
 
@@ -160,7 +153,7 @@ def generate_report(s: ScenarioInputs, pd_ratio: float, bi_days: int) -> str:
 
 **Business Interruption (BI):** The estimated downtime to repair damages and stabilize operations is **{bi_days} days**. This period may vary depending on supply chain and alternate site availability.
 
-> *This is a static report generated because the AI service is not active. Please add `GEMINI_API_KEY` to your `.streamlit/secrets.toml` file.*"""
+> *This is a static report generated because the AI service is not active. Please add `GEMINI_API_KEY` to your Streamlit Secrets.*"""
 
     if not _GEMINI_AVAILABLE:
         return static_report()
@@ -189,7 +182,8 @@ Raporu {lang} dilinde oluştur.
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
-    except Exception:
+    except Exception as e:
+        st.sidebar.error(f"AI Raporu oluşturulamadı: {e}", icon="🤖")
         return static_report()
 
 # --- STREAMLIT UYGULAMASI ---
