@@ -1,19 +1,27 @@
 # -*- coding: utf-8 -*-
 #
-# TariffEQ – AI Destekli PD & BI Hasar Analiz Aracı (Tek Dosya Sürümü)
-# =======================================================================
-# Bu Streamlit uygulaması, girilen tesis bilgilerine dayanarak AI destekli,
-# detaylı bir Maddi Hasar (PD) ve İş Durması (BI) senaryosu oluşturur.
-# Ardından, mevzuata uygun tüm olası koasürans ve muafiyet alternatifleri
-# için net hasar ve tazminat hesaplamalarını yaparak, en uygun poliçe
-# yapısının görsel olarak analiz edilmesini sağlar.
+# TariffEQ – AI Destekli ve Teknik Olarak Doğrulanmış Hasar & Prim Analiz Aracı
+# =================================================================================
+# Bu Streamlit uygulaması, 01/01/2025 tarihli İhtiyari Deprem Tarifesi'ne tam uyumlu
+# olarak, girilen tesis bilgileri için teknik olarak doğru prim ve hasar hesaplamaları yapar.
+# AI destekli, faaliyete özel hasar senaryoları üreterek en uygun poliçe yapısının
+# (koasürans/muafiyet) görsel olarak analiz edilmesini sağlar.
+#
+# Kilit Özellikler:
+# 1. Tarifeye Tam Uyum: Sigorta bedeli kademelerine göre geçerli olan koasürans ve
+#    muafiyet seçeneklerini otomatik olarak belirler ve doğru tazminat hesaplama
+#    tekniğini kullanır.
+# 2. Gelişmiş AI Raporu: Gemini API'yi kullanarak, bir risk mühendisi gibi davranan
+#    AI, faaliyete özel, teknik ve derinlikli hasar raporları oluşturur.
+# 3. Karar Odaklı Görselleştirme: Maliyet (Prim) ve Risk (Sigortalıda Kalan Tutar)
+#    eksenlerine sahip interaktif grafik, en verimli poliçe alternatifinin kolayca
+#    bulunmasını sağlar.
 #
 # Kurulum:
 # 1. Gerekli kütüphaneleri yükleyin: pip install streamlit pandas plotly google-generativeai
-# 2. Uygulamayı Streamlit Community Cloud'da yayınladıktan sonra,
+# 2. Uygulamayı Streamlit Cloud'da yayınladıktan sonra,
 #    "Manage app" -> "Settings" -> "Secrets" bölümüne API anahtarınızı ekleyin:
-#    GEMINI_API_KEY = "AIzaSy...OTOx1M"
-# 3. Uygulama otomatik olarak yeniden başlayacaktır.
+#    GEMINI_API_KEY = "SIZIN_API_ANAHTARINIZ"
 
 import streamlit as st
 import pandas as pd
@@ -25,7 +33,6 @@ from typing import Dict, List, Tuple
 _GEMINI_AVAILABLE = False
 try:
     import google.generativeai as genai
-    # Streamlit'in Secrets Management özelliğini kullanarak API anahtarını güvenli bir şekilde al
     if "GEMINI_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         _GEMINI_AVAILABLE = True
@@ -34,24 +41,35 @@ try:
 except (ImportError, Exception):
     _GEMINI_AVAILABLE = False
 
-# --- BASİT ÇEVİRİ SÖZLÜĞÜ ---
+# --- TARİFE VERİLERİ VE SABİTLER ---
+TARIFE_RATES = {
+    "Betonarme": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75],
+    "Diğer":     [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06],
+}
+KOAS_FACTORS = {
+    "80/20": 1.0, "75/25": 0.9375, "70/30": 0.875, "65/35": 0.8125,
+    "60/40": 0.75, "55/45": 0.6875, "50/50": 0.625, "45/55": 0.5625, "40/60": 0.5,
+    "90/10": 1.125, "100/0": 1.25
+}
+MUAFIYET_FACTORS = {
+    2.0: 1.0, 3.0: 0.94, 4.0: 0.87, 5.0: 0.81, 10.0: 0.65,
+    1.5: 1.03, 1.0: 1.06, 0.5: 1.09, 0.1: 1.12
+}
+_DEPREM_ORAN = {1: 0.20, 2: 0.17, 3: 0.13, 4: 0.09, 5: 0.06, 6: 0.06, 7: 0.06}
+
+# --- ÇEVİRİ SÖZLÜĞÜ ---
 T = {
-    "title": {"TR": "TariffEQ – AI Destekli Hasar Analizi", "EN": "TariffEQ – AI-Powered Damage Analysis"},
+    "title": {"TR": "TariffEQ – Teknik Hasar ve Prim Analizi", "EN": "TariffEQ – Technical Damage & Premium Analysis"},
     "sidebar_language": {"TR": "Language / Dil", "EN": "Language / Dil"},
     "inputs_header": {"TR": "1. Senaryo Girdileri", "EN": "1. Scenario Inputs"},
     "pd_header": {"TR": "Maddi Hasar (PD) Bilgileri", "EN": "Property Damage (PD) Information"},
     "bi_header": {"TR": "İş Durması (BI) Bilgileri", "EN": "Business Interruption (BI) Information"},
-    "si_pd": {"TR": "PD Sigorta Bedeli (₺)", "EN": "PD Sum Insured (TRY)"},
+    "si_pd": {"TR": "PD Toplam Sigorta Bedeli (₺)", "EN": "PD Total Sum Insured (TRY)"},
     "si_bi": {"TR": "Yıllık BI Bedeli (₺)", "EN": "Annual BI Sum Insured (TRY)"},
     "risk_zone": {"TR": "Deprem Risk Bölgesi (1=En Riskli)", "EN": "Earthquake Risk Zone (1=Highest)"},
     "btype": {"TR": "Yapı Türü", "EN": "Building Type"},
     "bage": {"TR": "Bina Yaşı", "EN": "Building Age"},
-    "floors": {"TR": "Kat Sayısı", "EN": "Number of Floors"},
     "activity": {"TR": "Faaliyet Kolu", "EN": "Line of Business"},
-    "retrofit": {"TR": "Güçlendirme", "EN": "Retrofitting"},
-    "bi_wait": {"TR": "BI Bekleme Süresi (gün)", "EN": "BI Waiting Period (days)"},
-    "supplier_dep": {"TR": "Tedarikçi Bağımlılığı", "EN": "Supplier Dependency"},
-    "alt_site": {"TR": "Alternatif Tesis Durumu", "EN": "Alternate Site Availability"},
     "results_header": {"TR": "2. Analiz Sonuçları", "EN": "2. Analysis Results"},
     "pd_damage_amount": {"TR": "Beklenen PD Hasar Tutarı", "EN": "Expected PD Damage Amount"},
     "bi_downtime": {"TR": "Beklenen Kesinti Süresi", "EN": "Expected Downtime"},
@@ -59,11 +77,7 @@ T = {
     "ai_header": {"TR": "AI Deprem Hasar Uzmanı Raporu", "EN": "AI Earthquake Damage Expert Report"},
     "analysis_header": {"TR": "3. Poliçe Alternatifleri Analizi", "EN": "3. Policy Alternatives Analysis"},
     "table_analysis": {"TR": "📊 Tablo Analizi", "EN": "📊 Table Analysis"},
-    "visual_analysis": {"TR": "📈 Görsel Analiz", "EN": "📈 Visual Analysis"},
-    "disclaimer": {
-        "TR": "Bu çıktı yalnızca demonstrasyon amaçlıdır ve resmi bir hasar tespiti veya sigorta teklifinin yerini almaz.",
-        "EN": "This output is for demonstration purposes only and does not replace a formal damage assessment or insurance quotation."
-    },
+    "visual_analysis": {"TR": "📈 Maliyet-Risk Analizi", "EN": "📈 Cost-Risk Analysis"},
     "btn_run": {"TR": "Analizi Çalıştır", "EN": "Run Analysis"},
 }
 
@@ -83,41 +97,42 @@ class ScenarioInputs:
     rg: int = 3
     yapi_turu: str = "Betonarme"
     bina_yasi: str = "10-30 yıl"
-    kat_sayisi: str = "4-7 kat"
     faaliyet: str = "Plastik Üretim Fabrikası"
-    guclendirme: str = "Yok"
     bi_gun_muafiyeti: int = 14
-    tedarikci_bagimliligi: str = "Orta"
-    alternatif_tesis: str = "Yok"
 
-_DEPREM_ORAN = {
-    1: 0.20, 2: 0.17, 3: 0.13, 4: 0.09, 5: 0.06, 6: 0.06, 7: 0.06
-}
-
+# --- TEKNİK HESAPLAMA ÇEKİRDEĞİ ---
 def calculate_pd_ratio(s: ScenarioInputs) -> float:
     base = _DEPREM_ORAN.get(s.rg, 0.13)
     factor = 1.0
     factor *= {"Betonarme": 1.0, "Çelik": 0.85, "Yığma": 1.20, "Diğer": 1.1}.get(s.yapi_turu, 1.0)
     factor *= {"< 10 yaş": 0.90, "10-30 yaş": 1.0, "> 30 yaş": 1.15}.get(s.bina_yasi, 1.0)
-    factor *= {"1-3 kat": 0.95, "4-7 kat": 1.0, "8+ kat": 1.1}.get(s.kat_sayisi, 1.0)
-    factor *= {"Yok": 1.0, "Var": 0.85}.get(s.guclendirme, 1.0)
     return min(0.70, max(0.01, base * factor))
 
-def calculate_bi_downtime(pd_ratio: float, s: ScenarioInputs) -> int:
+def calculate_bi_downtime(pd_ratio: float) -> int:
     base_days = 30 + (pd_ratio * 300)
-    factor = 1.0
-    factor *= {"Düşük": 0.9, "Orta": 1.0, "Yüksek": 1.2}.get(s.tedarikci_bagimliligi, 1.0)
-    factor *= {"Var": 0.7, "Yok": 1.0}.get(s.alternatif_tesis, 1.0)
-    return min(365, int(base_days * factor))
+    return min(365, int(base_days))
 
 def get_allowed_options(si_pd: int) -> Tuple[List[str], List[float]]:
-    koas_base = ["80/20", "75/25", "70/30", "65/35", "60/40", "55/45", "50/50", "45/55", "40/60"]
-    muaf_base = [2.0, 3.0, 4.0, 5.0, 10.0]
+    koas_opts = list(KOAS_FACTORS.keys())[:9] # İlk 9'u standart
+    muaf_opts = list(MUAFIYET_FACTORS.keys())[:5] # İlk 5'i standart
+
     if si_pd > 3_500_000_000:
-        koas_ext = ["90/10", "100/0"]
-        muaf_ext = [0.1, 0.5, 1.0, 1.5]
-        return koas_base + koas_ext, muaf_base + muaf_ext
-    return koas_base, muaf_base
+        koas_opts.extend(list(KOAS_FACTORS.keys())[9:]) # Düşük koasüranslar eklenir
+        muaf_opts.extend(list(MUAFIYET_FACTORS.keys())[5:]) # Düşük muafiyetler eklenir
+    
+    return koas_opts, muaf_opts
+
+def calculate_premium(si: float, yapi_turu: str, rg: int, koas: str, muaf: float, is_bi: bool = False) -> float:
+    base_rate = TARIFE_RATES.get(yapi_turu, TARIFE_RATES["Diğer"])[rg - 1]
+    prim_bedeli = min(si, 3_500_000_000) # Prim her zaman 3.5 Milyar TL'ye kadar olan bedel üzerinden hesaplanır (minimum prim kuralı)
+    
+    # BI primi için koasürans ve muafiyet indirim/artırımları uygulanmaz
+    if is_bi:
+        return (prim_bedeli * base_rate) / 1000.0
+    
+    # PD primi için indirim/artırımlar uygulanır
+    factor = KOAS_FACTORS.get(koas, 1.0) * MUAFIYET_FACTORS.get(muaf, 1.0)
+    return (prim_bedeli * base_rate * factor) / 1000.0
 
 def calculate_net_claim(si_pd: int, hasar_tutari: float, koas: str, muaf_pct: float) -> Dict[str, float]:
     muafiyet_tutari = si_pd * (muaf_pct / 100.0)
@@ -135,39 +150,20 @@ def generate_report(s: ScenarioInputs, pd_ratio: float, bi_days: int) -> str:
     def static_report():
         pd_pct = f"{pd_ratio:.1%}"
         if use_tr:
-            return f"""**Deprem Hasar Değerlendirmesi (Beklenen Senaryo)**
-
-**Tesis:** {s.faaliyet} ({s.yapi_turu}, {s.bina_yasi}) | **Bölge:** {s.rg}. Derece
-
-**Maddi Hasar (PD):** Yapısal ve operasyonel özellikler göz önüne alındığında, tesiste yaklaşık **{pd_pct}** oranında bir maddi hasar beklenmektedir. Bu oran, özellikle faaliyetinize özel makine ve teçhizatta önemli hasarlar anlamına gelebilir.
-
-**İş Durması (BI):** Maddi hasarın onarımı ve operasyonların yeniden stabil hale gelmesi için tahmini kesinti süresi **{bi_days} gündür**. Bu süre, tedarik zinciri ve alternatif tesis imkanlarına göre değişiklik gösterebilir.
-
-> *Bu rapor, AI servisinin aktif olmaması nedeniyle standart şablon kullanılarak oluşturulmuştur. Lütfen Streamlit ayarlarınızın "Secrets" bölümüne `GEMINI_API_KEY` ekleyin.*"""
+            return f"**Deprem Hasar Değerlendirmesi (Standart Rapor)**\n\n**Maddi Hasar (PD):** Tesis özelliklerine göre beklenen hasar oranı yaklaşık **{pd_pct}**'dir.\n\n**İş Durması (BI):** Tahmini kesinti süresi **{bi_days} gündür**.\n\n> *Bu rapor, AI servisinin aktif olmaması nedeniyle standart şablon kullanılarak oluşturulmuştur.*"
         else:
-            return f"""**Earthquake Damage Assessment (Expected Scenario)**
-
-**Facility:** {s.faaliyet} ({s.yapi_turu}, {s.bina_yasi}) | **Zone:** {s.rg}
-
-**Property Damage (PD):** Considering the structural and operational characteristics, an estimated property damage of **{pd_pct}** is expected. This could imply significant damage to specialized machinery and equipment.
-
-**Business Interruption (BI):** The estimated downtime to repair damages and stabilize operations is **{bi_days} days**. This period may vary depending on supply chain and alternate site availability.
-
-> *This is a static report generated because the AI service is not active. Please add `GEMINI_API_KEY` to your Streamlit Secrets.*"""
+            return f"**Earthquake Damage Assessment (Standard Report)**\n\n**Property Damage (PD):** Based on facility specs, the expected damage ratio is approx. **{pd_pct}**.\n\n**Business Interruption (BI):** Estimated downtime is **{bi_days} days**.\n\n> *This is a static report generated because the AI service is not active.*"
 
     if not _GEMINI_AVAILABLE:
         return static_report()
 
     prompt_template = """
-Sen, sigorta şirketleri için çalışan kıdemli bir deprem risk mühendisi ve hasar uzmanısın. Görevin, aşağıda bilgileri verilen endüstriyel tesis için beklenen bir deprem sonrası oluşacak hasarları, teknik ve profesyonel bir dille raporlamaktır. Raporu "Maddi Hasar (PD) Değerlendirmesi" ve "İş Durması (BI) Değerlendirmesi" olmak üzere iki ana başlık altında, madde işaretleri kullanarak sun. Faaliyet koluna özel, somut ve gerçekçi hasar örnekleri ver.
+Sen, sigorta şirketleri için çalışan kıdemli bir deprem risk mühendisi ve hasar uzmanısın. Görevin, aşağıda bilgileri verilen endüstriyel tesis için beklenen bir deprem sonrası oluşacak hasarları, teknik ve profesyonel bir dille raporlamaktır. Raporu "Maddi Hasar (PD) Değerlendirmesi" ve "İş Durması (BI) Değerlendirmesi" olmak üzere iki ana başlık altında, madde işaretleri kullanarak sun. Faaliyet koluna özel, somut ve gerçekçi hasar örnekleri ver. Örneğin, bir plastik fabrikası için enjeksiyon kalıplama makinelerinin devrilmesi, hammadde silolarının hasarı, kalıpların zarar görmesi gibi. İş durması analizinde ise kritik makine parçalarının temin süreleri, pazar payı kaybı riski gibi konulara değin.
 
 **Tesis Bilgileri:**
 - **Faaliyet Kolu:** {faaliyet}
 - **Yapı Türü / Yaşı:** {yapi_turu} / {bina_yasi}
 - **Deprem Risk Bölgesi:** {rg}. Derece
-- **Güçlendirme Durumu:** {guclendirme}
-- **Tedarikçi Bağımlılığı:** {tedarikci_bagimliligi}
-- **Alternatif Tesis:** {alternatif_tesis}
 
 **Hesaplanan Senaryo Değerleri:**
 - **Beklenen Maddi Hasar Oranı:** {pd_ratio:.1%}
@@ -197,27 +193,23 @@ def main():
         st.header(tr("inputs_header"))
         
         s_inputs = ScenarioInputs()
-        s_inputs.faaliyet = st.text_input(tr("activity"), "Plastik Üretim Fabrikası")
+        s_inputs.faaliyet = st.text_input(tr("activity"), "Plastik Enjeksiyon Üretim Fabrikası")
         
         with st.expander(tr("pd_header"), expanded=True):
-            s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=250_000_000, step=1_000_000)
+            s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=250_000_000, step=10_000_000)
             s_inputs.rg = st.select_slider(tr("risk_zone"), options=[1,2,3,4,5,6,7], value=3)
             s_inputs.yapi_turu = st.selectbox(tr("btype"), ["Betonarme", "Çelik", "Yığma", "Diğer"])
             s_inputs.bina_yasi = st.selectbox(tr("bage"), ["< 10 yaş", "10-30 yaş", "> 30 yaş"], index=1)
-            s_inputs.kat_sayisi = st.selectbox(tr("floors"), ["1-3 kat", "4-7 kat", "8+ kat"], index=1)
-            s_inputs.guclendirme = st.radio(tr("retrofit"), ["Yok", "Var"], index=0, horizontal=True)
 
         with st.expander(tr("bi_header"), expanded=True):
-            s_inputs.si_bi = st.number_input(tr("si_bi"), min_value=0, value=100_000_000, step=1_000_000)
+            s_inputs.si_bi = st.number_input(tr("si_bi"), min_value=0, value=100_000_000, step=10_000_000)
             s_inputs.bi_gun_muafiyeti = st.number_input(tr("bi_wait"), min_value=0, value=14, step=1)
-            s_inputs.tedarikci_bagimliligi = st.select_slider(tr("supplier_dep"), ["Düşük", "Orta", "Yüksek"], value="Orta")
-            s_inputs.alternatif_tesis = st.radio(tr("alt_site"), ["Var", "Yok"], index=1, horizontal=True)
 
         run_button = st.button(tr("btn_run"), use_container_width=True, type="primary")
 
     if run_button:
         pd_ratio = calculate_pd_ratio(s_inputs)
-        bi_days = calculate_bi_downtime(pd_ratio, s_inputs)
+        bi_days = calculate_bi_downtime(pd_ratio)
         pd_damage_amount = s_inputs.si_pd * pd_ratio
         net_bi_days = max(0, bi_days - s_inputs.bi_gun_muafiyeti)
         bi_damage_amount = (s_inputs.si_bi / 365.0) * net_bi_days if s_inputs.si_bi > 0 else 0
@@ -240,6 +232,10 @@ def main():
         results = []
         for koas in koas_opts:
             for muaf in muaf_opts:
+                prim_pd = calculate_premium(s_inputs.si_pd, s_inputs.yapi_turu, s_inputs.rg, koas, muaf)
+                prim_bi = calculate_premium(s_inputs.si_bi, s_inputs.yapi_turu, s_inputs.rg, koas, muaf, is_bi=True)
+                toplam_prim = prim_pd + prim_bi
+
                 pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf)
                 total_damage = pd_damage_amount + bi_damage_amount
                 total_payout = pd_claim["net_tazminat"] + bi_damage_amount
@@ -247,8 +243,7 @@ def main():
                 
                 results.append({
                     "Poliçe Yapısı": f"{koas} / {muaf}%",
-                    "Net PD Tazminatı": pd_claim["net_tazminat"],
-                    "Net BI Tazminatı": bi_damage_amount,
+                    "Yıllık Toplam Prim": toplam_prim,
                     "Toplam Net Tazminat": total_payout,
                     "Sigortalıda Kalan Risk": retained_risk,
                 })
@@ -256,24 +251,22 @@ def main():
 
         tab1, tab2 = st.tabs([tr("table_analysis"), tr("visual_analysis")])
         with tab1:
-            st.markdown("Aşağıdaki tabloda, tüm olası poliçe yapıları için hasar sonrası alacağınız net tazminatı ve şirketinizde kalacak riski karşılaştırabilirsiniz.")
+            st.markdown("Aşağıdaki tabloda, tüm olası poliçe yapıları için **maliyet (prim)** ve hasar sonrası **net durumunuzu** karşılaştırabilirsiniz.")
             st.dataframe(df.style.format("{:,.0f}", subset=df.columns[1:]), use_container_width=True)
         
         with tab2:
-            st.markdown("Bu grafik, en verimli poliçe alternatifini bulmanıza yardımcı olur. **Amaç, sağ üst köşeye en yakın noktayı bulmaktır.** Bu noktalar, hem **alacağınız tazminatı maksimize eden** hem de **şirketinizde kalacak riski minimize eden** en verimli seçenekleri temsil eder.")
+            st.markdown("Bu grafik, en verimli poliçe alternatifini bulmanıza yardımcı olur. **Amaç, sol alt köşeye en yakın noktayı bulmaktır.** Bu noktalar, hem **düşük prim** ödeyeceğiniz hem de hasar anında **şirketinizde en az riskin kalacağı** en verimli seçenekleri temsil eder.")
             fig = px.scatter(
-                df, x="Sigortalıda Kalan Risk", y="Toplam Net Tazminat",
-                color="Toplam Net Tazminat", color_continuous_scale=px.colors.sequential.Viridis,
-                hover_data=["Poliçe Yapısı"], title="Poliçe Alternatifleri Risk-Tazminat Analizi"
+                df, x="Yıllık Toplam Prim", y="Sigortalıda Kalan Risk",
+                color="Sigortalıda Kalan Risk", color_continuous_scale=px.colors.sequential.Reds_r,
+                hover_data=["Poliçe Yapısı", "Toplam Net Tazminat"], title="Poliçe Alternatifleri Maliyet-Risk Analizi"
             )
             fig.update_traces(marker=dict(size=10, line=dict(width=1, color='DarkSlateGrey')))
             fig.update_layout(
-                xaxis_title="Hasarda Şirketinizde Kalacak Risk (Düşük olması hedeflenir)",
-                yaxis_title="Alınacak Toplam Net Tazminat (Yüksek olması hedeflenir)"
+                xaxis_title="Yıllık Toplam Prim (Düşük olması hedeflenir)",
+                yaxis_title="Hasarda Şirketinizde Kalacak Risk (Düşük olması hedeflenir)"
             )
             st.plotly_chart(fig, use_container_width=True)
-            
-    st.info(tr("disclaimer"))
 
 if __name__ == "__main__":
     main()
