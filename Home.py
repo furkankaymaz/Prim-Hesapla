@@ -45,7 +45,7 @@ KOAS_FACTORS = {"80/20": 1.0, "75/25": 0.9375, "70/30": 0.875, "65/35": 0.8125, 
 MUAFIYET_FACTORS = {2.0: 1.0, 3.0: 0.94, 4.0: 0.87, 5.0: 0.81, 10.0: 0.65, 1.5: 1.03, 1.0: 1.06, 0.5: 1.09, 0.1: 1.12}
 _DEPREM_ORAN = {1: 0.20, 2: 0.17, 3: 0.13, 4: 0.09, 5: 0.06, 6: 0.06, 7: 0.06}
 
-# --- ÇEVİRİ SÖZLÜĞÜ (Gerekirse genişletilebilir) ---
+# --- ÇEVİRİ SÖZLÜĞÜ ---
 T = {
     "title": {"TR": "TariffEQ – Profesyonel Risk Analizi", "EN": "TariffEQ – Professional Risk Analysis"},
     "inputs_header": {"TR": "📊 1. Senaryo Girdileri", "EN": "📊 1. Scenario Inputs"},
@@ -53,16 +53,39 @@ T = {
     "pd_header": {"TR": "🧱 PD Risk Parametreleri", "EN": "🧱 PD Risk Parameters"},
     "bi_header": {"TR": "📈 BI Risk Parametreleri", "EN": "📈 BI Risk Parameters"},
     "activity_desc": {"TR": "Tesisin Faaliyet Tanımı", "EN": "Facility Activity Description"},
-    "activity_placeholder": {"TR": "Örn: Otomotiv yan sanayi için hassas metal parça üreten, CNC ve pres makineleri ağırlıklı bir fabrika.", "EN": "e.g., A factory producing precision metal parts for the automotive industry, mainly with CNC and press machines."},
+    "activity_desc_help": {"TR": "AI'ın tesisinize özel riskleri (içerik hassasiyeti, yangın riski vb.) doğru analiz edebilmesi için lütfen faaliyetinizi kısaca açıklayın.", "EN": "Please briefly describe your operations so the AI can accurately analyze facility-specific risks (e.g., content vulnerability, fire risk)."},
     "si_pd": {"TR": "PD Toplam Sigorta Bedeli", "EN": "PD Total Sum Insured"},
+    "si_pd_help": {"TR": "Bina, makine, demirbaş ve emtia gibi tüm maddi varlıklarınızın toplam yeniden yapım veya yerine koyma bedeli.", "EN": "The total replacement cost of all your physical assets like buildings, machinery, fixtures, and stock."},
     "risk_zone": {"TR": "Deprem Risk Bölgesi", "EN": "Earthquake Risk Zone"},
+    "risk_zone_help": {"TR": "Tesisinizin bulunduğu, resmi deprem tehlike haritasındaki risk bölgesi (1. Bölge en riskli).", "EN": "The official seismic hazard zone of your facility's location (Zone 1 is the highest risk)."},
     "yonetmelik": {"TR": "Deprem Yönetmeliği Dönemi", "EN": "Seismic Code Era"},
+    "yonetmelik_help": {"TR": "Binanızın inşa edildiği veya en son güçlendirildiği tarihteki geçerli deprem yönetmeliği. Bu, binanızın hasara karşı direncini belirleyen en önemli faktördür.", "EN": "The seismic code in effect at the time your building was constructed or last retrofitted. This is the most critical factor determining its resilience."},
     "btype": {"TR": "Yapı Türü", "EN": "Building Type"},
+    "btype_help": {"TR": "Binanın ana taşıyıcı sisteminin türü (Betonarme, Çelik vb.).", "EN": "The type of the main structural system of the building (e.g., Reinforced Concrete, Steel)."},
+    "kat_sayisi": {"TR": "Kat Sayısı", "EN": "Number of Floors"},
+    "kat_sayisi_help": {"TR": "Binanın toplam kat adedi. Yüksek binalar, depremde farklı salınım özellikleri gösterir.", "EN": "The total number of floors. Taller buildings exhibit different oscillation characteristics during an earthquake."},
+    "zemin": {"TR": "Zemin Sınıfı", "EN": "Soil Class"},
+    "zemin_help": {"TR": "Tesisinizin üzerine kurulu olduğu zeminin jeolojik yapısı. Bilmiyorsanız, 'ZC' varsayılan olarak kabul edilir. (ZA: Kaya, ZE: En Yumuşak Zemin)", "EN": "The geological type of the ground beneath your facility. If unknown, 'ZC' is assumed as the default. (ZA: Rock, ZE: Softest Soil)"},
+    "duzensizlik": {"TR": "Yapısal Düzensizlik Riski", "EN": "Structural Irregularity Risk"},
+    "duzensizlik_help": {"TR": "Binanızda 'yumuşak kat' (örn: alt katı tamamen camlı lobi/dükkan) veya 'kısa kolon' gibi yapısal zafiyetler var mı?", "EN": "Does your building have structural weaknesses like a 'soft story' (e.g., a ground floor with extensive glass windows) or 'short columns'?"},
+    "sprinkler": {"TR": "Sprinkler Sistemi Varlığı", "EN": "Sprinkler System Presence"},
+    "sprinkler_help": {"TR": "Tesisinizde otomatik yangın söndürme (sprinkler) sistemi bulunuyor mu? Bu, hem yangın riskini azaltır hem de potansiyel bir su hasarı riski oluşturur.", "EN": "Is there an automatic fire sprinkler system in your facility? This both reduces fire risk and creates a potential water damage risk."},
     "gross_profit": {"TR": "Yıllık Brüt Kâr (Gross Profit)", "EN": "Annual Gross Profit"},
+    "gross_profit_help": {"TR": "İş durması sonucu kaybedilecek olan, sigortalanabilir brüt kârınızın yıllık tutarı.", "EN": "The annual amount of your insurable gross profit that would be lost in case of a business interruption."},
+    "azami_tazminat": {"TR": "Azami Tazminat Süresi", "EN": "Max. Indemnity Period"},
+    "azami_tazminat_help": {"TR": "Bir hasar sonrası, kar kaybınızın sigorta tarafından karşılanacağı maksimum süre (genellikle 12, 18 veya 24 ay).", "EN": "The maximum period for which your loss of profit will be covered by insurance after a loss (typically 12, 18, or 24 months)."},
+    "isp": {"TR": "İş Sürekliliği Planı (İSP) Varlığı", "EN": "Business Continuity Plan (BCP) Presence"},
+    "isp_help": {"TR": "Kriz anında operasyonları devam ettirmek veya hızla yeniden başlatmak için yazılı ve test edilmiş bir planınız var mı?", "EN": "Do you have a written and tested plan to continue or quickly restart operations in a crisis?"},
+    "ramp_up": {"TR": "Üretimin Normale Dönme Hızı (Ramp-up)", "EN": "Production Ramp-up Speed"},
+    "ramp_up_help": {"TR": "Fiziksel onarım bittikten sonra, üretiminizin tekrar %100 kapasiteye ulaşması ne kadar sürer? (Kalibrasyon, personel, tedarik zinciri vb. faktörler)", "EN": "After physical repairs are complete, how long does it take for your production to reach 100% capacity? (Considering factors like calibration, personnel, supply chain, etc.)"},
+    "stok": {"TR": "Bitmiş Ürün Stoğu (Gün)", "EN": "Finished Goods Stock (Days)"},
+    "stok_help": {"TR": "Üretim tamamen dursa bile, mevcut stoklarınızla kaç gün boyunca satış yapmaya devam edebilirsiniz?", "EN": "Even if production completely stops, for how many days can you continue making sales from your existing stock?"},
+    "bi_wait": {"TR": "BI Bekleme Süresi (gün)", "EN": "BI Waiting Period (days)"},
+    "bi_wait_help": {"TR": "Kar kaybı tazminatının ödenmeye başlamasından önce geçmesi gereken, poliçenizdeki gün cinsinden muafiyet süresi.", "EN": "The deductible period in days, as specified in your policy, that must pass before loss of profit compensation begins."},
     "ai_analysis_header": {"TR": "🧠 2. AI Analiz Adımı", "EN": "🧠 2. AI Analysis Step"},
     "ai_analysis_desc": {"TR": "AI, girdiğiniz faaliyet tanımını analiz ederek hesaplama için gerekli olan teknik risk parametrelerini otomatik olarak belirledi.", "EN": "The AI has analyzed your activity description to automatically determine technical risk parameters for the calculation."},
     "results_header": {"TR": "📝 3. Analiz Sonuçları ve Rapor", "EN": "📝 3. Analysis Results and Report"},
-    "analysis_header": {"TR": "🔍 4. Poliçe Alternatifleri Analizi", "EN": "🔍 4. Policy Alternatives Analysis"},
+    "analysis_header": {"TR": "� 4. Poliçe Alternatifleri Analizi", "EN": "🔍 4. Policy Alternatives Analysis"},
     "btn_run": {"TR": "Analizi Çalıştır", "EN": "Run Analysis"},
 }
 
@@ -77,7 +100,6 @@ def money(x: float) -> str:
 # --- GİRDİ VE HESAPLAMA MODELLERİ ---
 @dataclass
 class ScenarioInputs:
-    # Kullanıcı Girdileri
     si_pd: int = 250_000_000
     yillik_brut_kar: int = 100_000_000
     rg: int = 3
@@ -93,7 +115,6 @@ class ScenarioInputs:
     ramp_up_hizi: str = "Orta"
     bitmis_urun_stogu: int = 15
     bi_gun_muafiyeti: int = 14
-    # AI Tarafından Doldurulacak Alanlar
     icerik_hassasiyeti: str = "Orta"
     ffe_riski: str = "Orta"
     kritik_makine_bagimliligi: str = "Orta"
@@ -176,7 +197,7 @@ def generate_report(s: ScenarioInputs, pd_ratio: float, bi_days: int, bi_damage:
     
     prompt_template = f"""
 Sen, sigorta şirketleri için çalışan kıdemli bir deprem risk mühendisi ve hasar uzmanısın. Görevin, aşağıda bilgileri verilen endüstriyel tesis için beklenen bir deprem sonrası oluşacak hasarları, teknik ve profesyonel bir dille raporlamaktır. Raporu "Maddi Hasar (PD) Değerlendirmesi", "İş Durması (BI) Değerlendirmesi" ve "Risk Danışmanlığı ve Aksiyon Önerileri" olmak üzere üç ana başlık altında, madde işaretleri kullanarak sun. Faaliyet koluna ve girilen tüm gelişmiş risk parametrelerine özel, somut ve gerçekçi hasar örnekleri ver.
-"Risk Danışmanlığı" bölümünde, analiz edilen firmanın risk segmentine ({risk_segment}) göre özel tavsiyelerde bulun.
+"Risk Danışmanlığı" bölümünde, analiz edilen firmanın risk segmentine ({risk_segment}) göre özel ve nicel tavsiyelerde bulun.
 
 **Tesis Bilgileri ve Birincil Risk Faktörleri:**
 - **Faaliyet Tanımı:** {s.faaliyet_tanimi}
@@ -222,36 +243,34 @@ def main():
 
     with col1:
         st.subheader(tr("base_header"))
-        s_inputs.faaliyet_tanimi = st.text_area(tr("activity_desc"), s_inputs.faaliyet_tanimi, placeholder=tr("activity_placeholder"), height=150)
-        s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000, format="%d")
-        s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000, format="%d")
-        s_inputs.rg = st.select_slider(tr("risk_zone"), options=[1,2,3,4,5,6,7], value=s_inputs.rg)
-        s_inputs.yapi_turu = st.selectbox(tr("btype"), ["Betonarme", "Çelik", "Yığma", "Diğer"])
+        s_inputs.faaliyet_tanimi = st.text_area(tr("activity_desc"), s_inputs.faaliyet_tanimi, placeholder=tr("activity_placeholder"), height=150, help=tr("activity_desc_help"))
+        s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000, format="%d", help=tr("si_pd_help"))
+        s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000, format="%d", help=tr("gross_profit_help"))
+        s_inputs.rg = st.select_slider(tr("risk_zone"), options=[1,2,3,4,5,6,7], value=s_inputs.rg, help=tr("risk_zone_help"))
+        s_inputs.yapi_turu = st.selectbox(tr("btype"), ["Betonarme", "Çelik", "Yığma", "Diğer"], help=tr("btype_help"))
 
     with col2:
         st.subheader(tr("pd_header"))
-        s_inputs.yonetmelik_donemi = st.selectbox(tr("yonetmelik"), ["1998-2018 arası", "2018 sonrası (Yeni Yönetmelik)", "1998 öncesi (Eski Yönetmelik)"])
-        s_inputs.kat_sayisi = st.selectbox(tr("kat_sayisi"), ["4-7 kat", "1-3 kat", "8+ kat"])
-        s_inputs.zemin_sinifi = st.selectbox(tr("zemin"), ["ZC", "ZA/ZB", "ZD", "ZE"])
-        s_inputs.yapısal_duzensizlik = st.selectbox(tr("duzensizlik"), ["Yok", "Var"])
-        s_inputs.sprinkler_varligi = st.radio(tr("sprinkler"), ["Yok", "Var"], index=0, horizontal=True)
+        s_inputs.yonetmelik_donemi = st.selectbox(tr("yonetmelik"), ["1998-2018 arası", "2018 sonrası (Yeni Yönetmelik)", "1998 öncesi (Eski Yönetmelik)"], help=tr("yonetmelik_help"))
+        s_inputs.kat_sayisi = st.selectbox(tr("kat_sayisi"), ["4-7 kat", "1-3 kat", "8+ kat"], help=tr("kat_sayisi_help"))
+        s_inputs.zemin_sinifi = st.selectbox(tr("zemin"), ["ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)", "ZD (Orta Gevşek)", "ZE (Yumuşak/Gevşek)"], help=tr("zemin_help"))
+        s_inputs.yapısal_duzensizlik = st.selectbox(tr("duzensizlik"), ["Yok (Varsayılan)", "Var"], help=tr("duzensizlik_help"))
+        s_inputs.sprinkler_varligi = st.radio(tr("sprinkler"), ["Yok", "Var"], index=0, horizontal=True, help=tr("sprinkler_help"))
 
     with col3:
         st.subheader(tr("bi_header"))
-        s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay")
-        s_inputs.isp_varligi = st.selectbox(tr("isp"), ["Yok", "Var (Test Edilmemiş)", "Var (Test Edilmiş)"])
-        s_inputs.ramp_up_hizi = st.selectbox(tr("ramp_up"), ["Orta", "Hızlı", "Yavaş"])
-        s_inputs.bitmis_urun_stogu = st.number_input(tr("stok"), value=s_inputs.bitmis_urun_stogu, min_value=0)
-        s_inputs.bi_gun_muafiyeti = st.number_input(tr("bi_wait"), min_value=0, value=s_inputs.bi_gun_muafiyeti, step=1)
+        s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay", help=tr("azami_tazminat_help"))
+        s_inputs.isp_varligi = st.selectbox(tr("isp"), ["Yok (Varsayılan)", "Var (Test Edilmemiş)", "Var (Test Edilmiş)"], help=tr("isp_help"))
+        s_inputs.ramp_up_hizi = st.selectbox(tr("ramp_up"), ["Orta (Varsayılan)", "Hızlı", "Yavaş"], help=tr("ramp_up_help"))
+        s_inputs.bitmis_urun_stogu = st.number_input(tr("stok"), value=s_inputs.bitmis_urun_stogu, min_value=0, help=tr("stok_help"))
+        s_inputs.bi_gun_muafiyeti = st.number_input(tr("bi_wait"), min_value=0, value=s_inputs.bi_gun_muafiyeti, step=1, help=tr("bi_wait_help"))
     
     st.markdown("---")
     run_button = st.button(f"🚀 {tr('btn_run')}", use_container_width=True, type="primary")
 
     if run_button:
-        # ---- AI PARAMETRE ATAMA ADIMI ----
         st.header(tr("ai_analysis_header"))
         with st.spinner("AI, tesisinizi analiz ediyor ve risk parametrelerini atıyor..."):
-            time.sleep(1) # Kullanıcının mesajı okuması için kısa bir bekleme
             ai_params = get_ai_driven_parameters(s_inputs.faaliyet_tanimi)
             s_inputs.icerik_hassasiyeti = ai_params["icerik_hassasiyeti"]
             s_inputs.ffe_riski = ai_params["ffe_riski"]
@@ -261,12 +280,13 @@ def main():
         st.info(f"**AI Analiz Özeti:** Tesisiniz, girilen sigorta bedeline göre **'{risk_segment}'** segmentinde değerlendirilmiştir. Faaliyet tanımınız analiz edilerek aşağıdaki parametreler hesaplamaya otomatik olarak dahil edilmiştir:", icon="💡")
         
         c1, c2, c3 = st.columns(3)
-        c1.metric("İçerik Hassasiyeti", s_inputs.icerik_hassasiyeti)
-        c2.metric("Deprem Sonrası Yangın Riski", s_inputs.ffe_riski)
-        c3.metric("Kritik Makine Bağımlılığı", s_inputs.kritik_makine_bagimliligi)
-        time.sleep(2) # Sonuçları göstermeden önce kullanıcının bu bölümü görmesine izin ver
+        c1.metric("İçerik Hassasiyeti", s_inputs.icerik_hassasiyeti, help="AI, faaliyet tanımınıza göre tesis içindeki varlıkların (makine, emtia) hasara karşı hassasiyetini bu şekilde skorladı.")
+        c2.metric("Deprem Sonrası Yangın Riski", s_inputs.ffe_riski, help="AI, faaliyetinizdeki yanıcı madde yoğunluğuna göre deprem sonrası ikincil bir yangın çıkma riskini bu şekilde skorladı.")
+        c3.metric("Kritik Makine Bağımlılığı", s_inputs.kritik_makine_bagimliligi, help="AI, üretiminizin ne kadar özel ve yeri zor dolacak makinelere bağlı olduğunu bu şekilde skorladı.")
+        
+        with st.expander("🤖 AI'a Gönderilen Komutu Gör"):
+            st.code(f"""Bir risk analisti olarak, aşağıdaki endüstriyel tesis tanımını analiz et ve şu üç risk parametresini 'Düşük', 'Orta' veya 'Yüksek' olarak skorla. Sadece JSON formatında cevap ver. Tesis Tanımı: "{s_inputs.faaliyet_tanimi}"...""", language="text")
 
-        # ---- HESAPLAMA VE RAPORLAMA ADIMI ----
         pd_ratio = calculate_pd_ratio(s_inputs)
         bi_days = calculate_bi_downtime(pd_ratio, s_inputs)
         pd_damage_amount = s_inputs.si_pd * pd_ratio
@@ -322,3 +342,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+�
