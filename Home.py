@@ -61,7 +61,7 @@ T = {
     "yonetmelik": {"TR": "Deprem Yönetmeliği Dönemi", "EN": "Seismic Code Era"},
     "yonetmelik_help": {"TR": "Binanızın inşa edildiği veya en son güçlendirildiği tarihteki geçerli deprem yönetmeliği. Bu, binanızın hasara karşı direncini belirleyen en önemli faktördür.", "EN": "The seismic code in effect at the time your building was constructed or last retrofitted. This is the most critical factor determining its resilience."},
     "btype": {"TR": "Yapı Türü", "EN": "Building Type"},
-    "btype_help": {"TR": "Binanın ana taşıyıcı sisteminin türü (Betonarme, Çelik vb.).", "EN": "The type of the main structural system of the building (e.g., Reinforced Concrete, Steel)."},
+    "btype_help": {"TR": "Binanın ana taşıyıcı sisteminin türü (Betonarme, Çelik vb.). Prim hesabı için zorunludur.", "EN": "The type of the main structural system of the building (e.g., Reinforced Concrete, Steel). Required for premium calculation."},
     "kat_sayisi": {"TR": "Kat Sayısı", "EN": "Number of Floors"},
     "kat_sayisi_help": {"TR": "Binanın toplam kat adedi. Yüksek binalar, depremde farklı salınım özellikleri gösterir.", "EN": "The total number of floors. Taller buildings exhibit different oscillation characteristics during an earthquake."},
     "zemin": {"TR": "Zemin Sınıfı", "EN": "Soil Class"},
@@ -85,7 +85,7 @@ T = {
     "ai_analysis_header": {"TR": "🧠 2. AI Analiz Adımı", "EN": "🧠 2. AI Analysis Step"},
     "ai_analysis_desc": {"TR": "AI, girdiğiniz faaliyet tanımını analiz ederek hesaplama için gerekli olan teknik risk parametrelerini otomatik olarak belirledi.", "EN": "The AI has analyzed your activity description to automatically determine technical risk parameters for the calculation."},
     "results_header": {"TR": "📝 3. Analiz Sonuçları ve Rapor", "EN": "📝 3. Analysis Results and Report"},
-    "analysis_header": {"TR": "� 4. Poliçe Alternatifleri Analizi", "EN": "🔍 4. Policy Alternatives Analysis"},
+    "analysis_header": {"TR": "🔍 4. Poliçe Alternatifleri Analizi", "EN": "🔍 4. Policy Alternatives Analysis"},
     "btn_run": {"TR": "Analizi Çalıştır", "EN": "Run Analysis"},
 }
 
@@ -251,8 +251,8 @@ def main():
 
     with col2:
         st.subheader(tr("pd_header"))
-        s_inputs.yonetmelik_donemi = st.selectbox(tr("yonetmelik"), ["1998-2018 arası", "2018 sonrası (Yeni Yönetmelik)", "1998 öncesi (Eski Yönetmelik)"], help=tr("yonetmelik_help"))
-        s_inputs.kat_sayisi = st.selectbox(tr("kat_sayisi"), ["4-7 kat", "1-3 kat", "8+ kat"], help=tr("kat_sayisi_help"))
+        s_inputs.yonetmelik_donemi = st.selectbox(tr("yonetmelik"), ["1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)", "1998 öncesi (Eski Yönetmelik)"], help=tr("yonetmelik_help"))
+        s_inputs.kat_sayisi = st.selectbox(tr("kat_sayisi"), ["4-7 kat (Varsayılan)", "1-3 kat", "8+ kat"], help=tr("kat_sayisi_help"))
         s_inputs.zemin_sinifi = st.selectbox(tr("zemin"), ["ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)", "ZD (Orta Gevşek)", "ZE (Yumuşak/Gevşek)"], help=tr("zemin_help"))
         s_inputs.yapısal_duzensizlik = st.selectbox(tr("duzensizlik"), ["Yok (Varsayılan)", "Var"], help=tr("duzensizlik_help"))
         s_inputs.sprinkler_varligi = st.radio(tr("sprinkler"), ["Yok", "Var"], index=0, horizontal=True, help=tr("sprinkler_help"))
@@ -268,14 +268,23 @@ def main():
     st.markdown("---")
     run_button = st.button(f"🚀 {tr('btn_run')}", use_container_width=True, type="primary")
 
+    if 'run_clicked' not in st.session_state:
+        st.session_state.run_clicked = False
+
     if run_button:
-        st.header(tr("ai_analysis_header"))
+        st.session_state.run_clicked = True
+        st.session_state.s_inputs = s_inputs
+
+    if st.session_state.run_clicked:
+        s_inputs = st.session_state.s_inputs
+        
         with st.spinner("AI, tesisinizi analiz ediyor ve risk parametrelerini atıyor..."):
             ai_params = get_ai_driven_parameters(s_inputs.faaliyet_tanimi)
             s_inputs.icerik_hassasiyeti = ai_params["icerik_hassasiyeti"]
             s_inputs.ffe_riski = ai_params["ffe_riski"]
             s_inputs.kritik_makine_bagimliligi = ai_params["kritik_makine_bagimliligi"]
 
+        st.header(tr("ai_analysis_header"))
         risk_segment = get_risk_segment(s_inputs.si_pd)
         st.info(f"**AI Analiz Özeti:** Tesisiniz, girilen sigorta bedeline göre **'{risk_segment}'** segmentinde değerlendirilmiştir. Faaliyet tanımınız analiz edilerek aşağıdaki parametreler hesaplamaya otomatik olarak dahil edilmiştir:", icon="💡")
         
@@ -341,5 +350,4 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
-    main()
-�
+    mai
