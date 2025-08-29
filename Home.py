@@ -7,13 +7,14 @@
 # mantığı ile ticari/sınai rizikolar için profesyonel seviyede bir deprem
 # hasar analizi sunar.
 #
-# GÜNCEL REVİZYON NOTLARI (Ağustos 2025 - v2.1):
+# GÜNCEL REVİZYON NOTLARI (Ağustos 2025 - v2.2):
 # 1. BI Modeli Zenginleştirildi: İş Durması hesaplamasına 'Ekipman Tedarik Gecikmesi'
 #    ve 'Bölgesel Altyapı Çöküşü' gibi ikincil risk faktörleri dahil edildi.
 # 2. Uluslararası Vaka Entegrasyonu: Northridge (1994) depremi tecrübesi,
 #    eski tip çelik yapılar için potansiyel bir zafiyet olarak modele eklendi.
 # 3. AI Analist Rolü Keskinleştirildi: AI, artık tüm 'gizli zeka' kurallarını
 #    raporunda doğrudan referans vererek açıklamak üzere yeniden eğitildi.
+# 4. UI Düzeltmesi: Eksik bırakılan tüm girdi parametreleri arayüze eklendi.
 
 import streamlit as st
 import pandas as pd
@@ -60,12 +61,26 @@ T = {
     "yonetmelik_help": {"TR": "Binanın inşaat veya güçlendirme yılına göre ait olduğu yönetmelik. Bina dayanıklılığını belirler.", "EN": "The code corresponding to the building's construction/retrofit year. Determines structural resilience."},
     "btype": {"TR": "Yapı Türü", "EN": "Building Type"},
     "btype_help": {"TR": "Binanın ana taşıyıcı sistemi. Prim hesabında kullanılır.", "EN": "The main structural system of the building. Used in premium calculation."},
+    "kat_sayisi": {"TR": "Kat Sayısı", "EN": "Number of Floors"},
+    "kat_sayisi_help": {"TR": "Binanın toplam kat adedi.", "EN": "The total number of floors in the building."},
+    "zemin": {"TR": "Zemin Sınıfı", "EN": "Soil Class"},
+    "zemin_help": {"TR": "Tesisin zemin yapısı (ZA: Kaya, ZE: En Yumuşak). Bilinmiyorsa 'ZC' seçilebilir.", "EN": "The facility's soil type (ZA: Rock, ZE: Softest). If unknown, select 'ZC'."},
     "duzensizlik": {"TR": "Yapısal Düzensizlik Riski", "EN": "Structural Irregularity Risk"},
     "duzensizlik_help": {"TR": "'Yumuşak kat', 'bitişik farklı bina' veya 'kısa kolon' gibi bilinen bir yapısal zafiyet var mı?", "EN": "Are there known structural weaknesses like 'soft story', 'adjacent different building' or 'short columns'?"},
+    "sprinkler": {"TR": "Sprinkler Sistemi Varlığı", "EN": "Sprinkler System Presence"},
+    "sprinkler_help": {"TR": "Otomatik yangın söndürme sistemi var mı? Yangın riskini azaltır.", "EN": "Is there an automatic fire sprinkler system? It reduces fire risk."},
     "gross_profit": {"TR": "Yıllık Brüt Kâr (GP)", "EN": "Annual Gross Profit (GP)"},
     "gross_profit_help": {"TR": "İş durması halinde kaybedilecek, sigortalanabilir yıllık brüt kâr.", "EN": "The insurable annual gross profit that would be lost during an interruption."},
+    "azami_tazminat": {"TR": "Azami Tazminat Süresi", "EN": "Max. Indemnity Period"},
+    "azami_tazminat_help": {"TR": "Hasar sonrası kar kaybınızın sigorta tarafından karşılanacağı maksimum süre.", "EN": "The maximum period for which loss of profit is covered by insurance post-loss."},
     "isp": {"TR": "İş Sürekliliği Planı (İSP)", "EN": "Business Continuity Plan (BCP)"},
     "isp_help": {"TR": "Kriz anında operasyonları sürdürmek için yazılı ve test edilmiş bir plan var mı?", "EN": "Is there a written, tested plan to continue operations during a crisis?"},
+    "ramp_up": {"TR": "Üretimin Normale Dönme Hızı", "EN": "Production Ramp-up Speed"},
+    "ramp_up_help": {"TR": "Onarım sonrası üretimin tekrar %100 kapasiteye ulaşma hızı.", "EN": "The speed at which production returns to 100% capacity after repairs."},
+    "stok": {"TR": "Bitmiş Ürün Stoğu (Gün)", "EN": "Finished Goods Stock (Days)"},
+    "stok_help": {"TR": "Üretim dursa bile, mevcut stokla kaç gün satış yapabilirsiniz?", "EN": "For how many days can you continue sales with existing stock if production stops?"},
+    "bi_wait": {"TR": "BI Bekleme Süresi (Gün)", "EN": "BI Waiting Period (days)"},
+    "bi_wait_help": {"TR": "Poliçedeki, kar kaybı tazminatı başlamadan önce geçmesi gereken gün sayısı.", "EN": "The policy's deductible period in days before loss of profit compensation starts."},
     "ai_analysis_header": {"TR": "🧠 2. AI Analiz Adımı ve Gerekçelendirme", "EN": "🧠 2. AI Analysis Step & Justification"},
     "results_header": {"TR": "📝 3. Analiz Sonuçları", "EN": "📝 3. Analysis Results"},
     "analysis_header": {"TR": "🔍 4. Poliçe Alternatifleri Analizi", "EN": "🔍 4. Policy Alternatives Analysis"},
@@ -94,8 +109,10 @@ class ScenarioInputs:
     kat_sayisi: str = "1-3 kat"
     zemin_sinifi: str = "ZE"
     yapısal_duzensizlik: str = "Var"
+    sprinkler_varligi: str = "Var"
     azami_tazminat_suresi: int = 365
     isp_varligi: str = "Var (Test Edilmiş)"
+    ramp_up_hizi: str = "Orta"
     bitmis_urun_stogu: int = 30
     bi_gun_muafiyeti: int = 21
     icerik_hassasiyeti: str = "Orta"
@@ -112,17 +129,25 @@ def calculate_pd_ratio(s: ScenarioInputs) -> float:
     FACTORS = {
         "yapi_turu": {"Betonarme": 1.0, "Çelik": 0.85, "Yığma": 1.20, "Diğer": 1.1},
         "yonetmelik": {"1998 öncesi": 1.25, "1998-2018": 1.00, "2018 sonrası": 0.80},
+        "kat_sayisi": {"1-3": 0.95, "4-7": 1.00, "8+": 1.10},
         "zemin": {"ZC": 1.00, "ZA/ZB": 0.85, "ZD": 1.20, "ZE": 1.50},
         "duzensizlik": {"Yok": 1.00, "Var": 1.40},
         "icerik_hassasiyeti": {"Düşük": 0.80, "Orta": 1.00, "Yüksek": 1.30},
+        "ffe_riski": {"Düşük": 1.00, "Orta": 1.15, "Yüksek": 1.40}
     }
     base = _DEPREM_ORAN.get(s.rg, 0.13)
     factor = 1.0
     factor *= FACTORS["yapi_turu"].get(s.yapi_turu, 1.0)
     factor *= FACTORS["yonetmelik"].get(s.yonetmelik_donemi.split(' ')[0], 1.0)
+    factor *= FACTORS["kat_sayisi"].get(s.kat_sayisi.split(' ')[0], 1.0)
     factor *= FACTORS["zemin"].get(s.zemin_sinifi.split(' ')[0], 1.0)
     factor *= FACTORS["duzensizlik"].get(s.yapısal_duzensizlik, 1.0)
     factor *= FACTORS["icerik_hassasiyeti"].get(s.icerik_hassasiyeti, 1.0)
+    
+    ffe_factor = FACTORS["ffe_riski"].get(s.ffe_riski, 1.0)
+    if s.sprinkler_varligi == "Var":
+        ffe_factor = (ffe_factor - 1) * 0.4 + 1
+    factor *= ffe_factor
     
     # VAKA #1 (Türkiye): Eski tip prefabrik zafiyeti (Referans: PEER 2000-03 Raporu)
     if s.yapi_turu == "Betonarme" and "1998 öncesi" in s.yonetmelik_donemi:
@@ -139,37 +164,38 @@ def calculate_pd_ratio(s: ScenarioInputs) -> float:
     return min(0.70, max(0.01, base * factor))
 
 def calculate_bi_downtime(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, int]:
-    # REVİZYON: BI Modeli, 'Ekipman Gecikmesi' faktörü ile zenginleştirildi.
     FACTORS = {
         "isp": {"Yok": 1.00, "Var (Test Edilmemiş)": 0.85, "Var (Test Edilmiş)": 0.70},
-        "makine_bagimliligi": {"Düşük": 1.00, "Orta": 1.25, "Yüksek": 1.70} # Yüksek'in çarpanı artırıldı
+        "ramp_up": {"Hızlı": 1.10, "Orta": 1.20, "Yavaş": 1.30},
+        "makine_bagimliligi": {"Düşük": 1.00, "Orta": 1.25, "Yüksek": 1.70}
     }
     base_repair_days = 30 + (pd_ratio * 300)
     operational_factor = 1.0
     operational_factor *= FACTORS["isp"].get(s.isp_varligi, 1.0)
+    operational_factor *= FACTORS["ramp_up"].get(s.ramp_up_hizi, 1.0)
     operational_factor *= FACTORS["makine_bagimliligi"].get(s.kritik_makine_bagimliligi, 1.0)
     gross_downtime = int(base_repair_days * operational_factor)
     
-    # REVİZYON: BI Modeline 'Bölgesel Altyapı Çöküşü' riski eklendi.
     if s.rg in [1, 2]:
-        gross_downtime = int(gross_downtime * 1.15) # +%15 Altyapı gecikme payı
+        gross_downtime = int(gross_downtime * 1.15)
 
     net_downtime_before_indemnity = gross_downtime - s.bitmis_urun_stogu
     final_downtime = min(s.azami_tazminat_suresi, net_downtime_before_indemnity)
     return max(0, gross_downtime), max(0, int(final_downtime))
 
-# ... (get_allowed_options, calculate_premium, calculate_net_claim fonksiyonları aynı)
 def get_allowed_options(si_pd: int) -> Tuple[List[str], List[float]]:
     koas_opts = list(KOAS_FACTORS.keys())[:9]; muaf_opts = list(MUAFIYET_FACTORS.keys())[:5]
     if si_pd > 3_500_000_000:
         koas_opts.extend(list(KOAS_FACTORS.keys())[9:]); muaf_opts.extend(list(MUAFIYET_FACTORS.keys())[5:])
     return koas_opts, muaf_opts
+
 def calculate_premium(si: float, yapi_turu: str, rg: int, koas: str, muaf: float, is_bi: bool = False) -> float:
     base_rate = TARIFE_RATES.get(yapi_turu, TARIFE_RATES["Diğer"])[rg - 1]
     prim_bedeli = min(si, 3_500_000_000) if not is_bi else si
     if is_bi: return (prim_bedeli * base_rate * 0.75) / 1000.0
     factor = KOAS_FACTORS.get(koas, 1.0) * MUAFIYET_FACTORS.get(muaf, 1.0)
     return (prim_bedeli * base_rate * factor) / 1000.0
+
 def calculate_net_claim(si_pd: int, hasar_tutari: float, koas: str, muaf_pct: float) -> Dict[str, float]:
     muafiyet_tutari = si_pd * (muaf_pct / 100.0)
     muafiyet_sonrasi_hasar = max(0.0, hasar_tutari - muafiyet_tutari)
@@ -177,13 +203,12 @@ def calculate_net_claim(si_pd: int, hasar_tutari: float, koas: str, muaf_pct: fl
     net_tazminat = muafiyet_sonrasi_hasar * sirket_pay_orani
     sigortalida_kalan = hasar_tutari - net_tazminat
     return {"net_tazminat": net_tazminat, "sigortalida_kalan": sigortalida_kalan}
+
 # --- AI FONKSİYONLARI ---
 @st.cache_data(show_spinner=False)
 def get_ai_driven_parameters(faaliyet_tanimi: str) -> Dict[str, str]:
     default_params = {"icerik_hassasiyeti": "Orta", "ffe_riski": "Orta", "kritik_makine_bagimliligi": "Orta"}
     if not _GEMINI_AVAILABLE: return default_params
-    
-    # REVİZYON: Prompt, yüksek teknoloji risklerini (Tayvan/Japonya vakaları) içerecek şekilde güncellendi.
     prompt = f"""
     Rolün: Kıdemli bir deprem risk mühendisi.
     Görevin: Tesis tanımını analiz edip, 3 risk parametresini skorlamak.
@@ -213,8 +238,6 @@ def get_ai_driven_parameters(faaliyet_tanimi: str) -> Dict[str, str]:
 @st.cache_data(show_spinner=False)
 def generate_report(s: ScenarioInputs, pd_ratio: float, gross_bi_days: int) -> str:
     if not _GEMINI_AVAILABLE: return "AI servisi aktif değil."
-    
-    # REVİZYON: AI ROLÜ 'ANALİST' OLARAK KESKİNLEŞTİRİLDİ. ARTIK TÜM VAKALARA REFERANS VERMEYE ZORLANIYOR.
     prompt_template = f"""
     Rolün: Uzman bir risk analisti.
     Görevin: Sağlanan verileri kullanarak, teknik bir hasar analizi raporu oluşturmak.
@@ -252,45 +275,75 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.subheader(tr("base_header")); s_inputs.faaliyet_tanimi = st.text_area(tr("activity_desc"), s_inputs.faaliyet_tanimi, height=150, help=tr("activity_desc_help")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000, format="%d", help=tr("si_pd_help")); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000, format="%d", help=tr("gross_profit_help"));
+        st.subheader(tr("base_header"))
+        s_inputs.faaliyet_tanimi = st.text_area(tr("activity_desc"), s_inputs.faaliyet_tanimi, height=150, help=tr("activity_desc_help"))
+        s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000, format="%d", help=tr("si_pd_help"))
+        s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000, format="%d", help=tr("gross_profit_help"))
+        s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg, help=tr("risk_zone_help"))
+        s_inputs.yapi_turu = st.selectbox(tr("btype"), ["Betonarme", "Çelik", "Yığma", "Diğer"], help=tr("btype_help"))
+
     with col2:
-        st.subheader(tr("pd_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=[1,2,3,4,5,6,7], value=s_inputs.rg, help=tr("risk_zone_help")); s_inputs.yapi_turu = st.selectbox(tr("btype"), ["Betonarme", "Çelik", "Yığma", "Diğer"], help=tr("btype_help")); s_inputs.yonetmelik_donemi = st.selectbox(tr("yonetmelik"), ["1998 öncesi (Eski Yönetmelik)", "1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)"], help=tr("yonetmelik_help"));
+        st.subheader(tr("pd_header"))
+        s_inputs.yonetmelik_donemi = st.selectbox(tr("yonetmelik"), ["1998 öncesi (Eski Yönetmelik)", "1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)"], help=tr("yonetmelik_help"))
+        s_inputs.kat_sayisi = st.selectbox(tr("kat_sayisi"), ["1-3 kat", "4-7 kat (Varsayılan)", "8+ kat"], help=tr("kat_sayisi_help"))
+        s_inputs.zemin_sinifi = st.selectbox(tr("zemin"), ["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"], help=tr("zemin_help"))
+        s_inputs.yapısal_duzensizlik = st.selectbox(tr("duzensizlik"), ["Var", "Yok"], help=tr("duzensizlik_help"))
+        s_inputs.sprinkler_varligi = st.radio(tr("sprinkler"), ["Yok", "Var"], index=1, horizontal=True, help=tr("sprinkler_help"))
+
     with col3:
-        st.subheader(tr("bi_header")); s_inputs.zemin_sinifi = st.selectbox("Zemin Sınıfı", ["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"]); s_inputs.yapısal_duzensizlik = st.selectbox(tr("duzensizlik"), ["Var", "Yok"], help=tr("duzensizlik_help")); s_inputs.isp_varligi = st.selectbox(tr("isp"), ["Yok (Varsayılan)", "Var (Test Edilmemiş)", "Var (Test Edilmiş)"], help=tr("isp_help"));
-    
+        st.subheader(tr("bi_header"))
+        s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], index=0, format_func=lambda x: f"{int(x/30)} Ay", help=tr("azami_tazminat_help"))
+        s_inputs.isp_varligi = st.selectbox(tr("isp"), ["Yok (Varsayılan)", "Var (Test Edilmemiş)", "Var (Test Edilmiş)"], index=2, help=tr("isp_help"))
+        s_inputs.ramp_up_hizi = st.selectbox(tr("ramp_up"), ["Orta (Varsayılan)", "Hızlı", "Yavaş"], help=tr("ramp_up_help"))
+        s_inputs.bitmis_urun_stogu = st.number_input(tr("stok"), value=s_inputs.bitmis_urun_stogu, min_value=0, help=tr("stok_help"))
+        s_inputs.bi_gun_muafiyeti = st.number_input(tr("bi_wait"), min_value=0, value=s_inputs.bi_gun_muafiyeti, step=1, help=tr("bi_wait_help"))
+
     st.markdown("---")
     if st.button(f"🚀 {tr('btn_run')}", use_container_width=True, type="primary"):
-        st.session_state.run_clicked = True; st.session_state.s_inputs = s_inputs; st.session_state.errors = []
+        st.session_state.run_clicked = True
+        st.session_state.s_inputs = s_inputs
+        st.session_state.errors = []
+
     if st.session_state.run_clicked:
         s_inputs = st.session_state.s_inputs
         with st.spinner("AI, tesisinizi analiz ediyor ve risk parametrelerini atıyor..."):
             ai_params = get_ai_driven_parameters(s_inputs.faaliyet_tanimi)
             s_inputs.icerik_hassasiyeti, s_inputs.ffe_riski, s_inputs.kritik_makine_bagimliligi = ai_params["icerik_hassasiyeti"], ai_params["ffe_riski"], ai_params["kritik_makine_bagimliligi"]
+        
         pd_ratio = calculate_pd_ratio(s_inputs)
         gross_bi_days, net_bi_days_raw = calculate_bi_downtime(pd_ratio, s_inputs)
         pd_damage_amount = s_inputs.si_pd * pd_ratio
         net_bi_days_final = max(0, net_bi_days_raw - s_inputs.bi_gun_muafiyeti)
         bi_damage_amount = (s_inputs.yillik_brut_kar / 365.0) * net_bi_days_final if s_inputs.yillik_brut_kar > 0 else 0
+        
         st.header(tr("ai_analysis_header"))
         with st.spinner("AI Uzman Analisti, raporu hazırlıyor..."):
             report = generate_report(s_inputs, pd_ratio, gross_bi_days)
             st.markdown(report, unsafe_allow_html=True)
+            
         st.header(tr("results_header"))
         m1, m2, m3 = st.columns(3)
         m1.metric("Beklenen PD Hasar Tutarı", money(pd_damage_amount), f"PML: {pd_ratio:.2%}")
         m2.metric("Brüt / Net İş Kesintisi", f"{gross_bi_days} / {net_bi_days_final} gün", "Onarım / Tazmin edilebilir")
         m3.metric("Beklenen BI Hasar Tutarı", money(bi_damage_amount))
+        
         st.markdown("---")
         st.header(tr("analysis_header"))
+        
         koas_opts, muaf_opts = get_allowed_options(s_inputs.si_pd)
         results = []
         for koas in koas_opts:
             for muaf in muaf_opts:
-                prim_pd = calculate_premium(s_inputs.si_pd, s_inputs.yapi_turu, s_inputs.rg, koas, muaf); prim_bi = calculate_premium(s_inputs.yillik_brut_kar, s_inputs.yapi_turu, s_inputs.rg, koas, muaf, is_bi=True); toplam_prim = prim_pd + prim_bi
-                pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf); total_payout = pd_claim["net_tazminat"] + bi_damage_amount; retained_risk = (pd_damage_amount + bi_damage_amount) - total_payout
+                prim_pd = calculate_premium(s_inputs.si_pd, s_inputs.yapi_turu, s_inputs.rg, koas, muaf)
+                prim_bi = calculate_premium(s_inputs.yillik_brut_kar, s_inputs.yapi_turu, s_inputs.rg, koas, muaf, is_bi=True)
+                toplam_prim = prim_pd + prim_bi
+                pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf)
+                total_payout = pd_claim["net_tazminat"] + bi_damage_amount
+                retained_risk = (pd_damage_amount + bi_damage_amount) - total_payout
                 verimlilik_skoru = (total_payout / toplam_prim if toplam_prim > 0 else 0) - (retained_risk / s_inputs.si_pd if s_inputs.si_pd > 0 else 0)
                 results.append({"Poliçe Yapısı": f"{koas} / {muaf}%", "Yıllık Toplam Prim": toplam_prim, "Toplam Net Tazminat": total_payout, "Sigortalıda Kalan Risk": retained_risk, "Verimlilik Skoru": verimlilik_skoru})
         df = pd.DataFrame(results).sort_values("Verimlilik Skoru", ascending=False).reset_index(drop=True)
+        
         tab1, tab2 = st.tabs([tr("table_analysis"), tr("visual_analysis")])
         with tab1:
             st.dataframe(df.style.format({"Yıllık Toplam Prim": money, "Toplam Net Tazminat": money, "Sigortalıda Kalan Risk": money, "Verimlilik Skoru": "{:.2f}"}), use_container_width=True)
@@ -298,6 +351,7 @@ def main():
             fig = px.scatter(df, x="Yıllık Toplam Prim", y="Sigortalıda Kalan Risk", color="Verimlilik Skoru", color_continuous_scale=px.colors.sequential.Viridis, hover_data=["Poliçe Yapısı", "Toplam Net Tazminat", "Verimlilik Skoru"], title="Poliçe Alternatifleri Maliyet-Risk Analizi")
             fig.update_layout(xaxis_title="Yıllık Toplam Prim", yaxis_title="Hasarda Şirketinizde Kalacak Risk", coloraxis_colorbar_title_text = 'Verimlilik')
             st.plotly_chart(fig, use_container_width=True)
+            
     if st.session_state.errors:
         with st.sidebar.expander("⚠️ Geliştirici Hata Logları", expanded=False):
             for error in st.session_state.errors:
