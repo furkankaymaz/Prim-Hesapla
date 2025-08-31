@@ -7,11 +7,13 @@
 # mantığı ile ticari/sınai rizikolar için profesyonel seviyede bir deprem
 # hasar analizi sunar.
 #
-# GÜNCEL REVİZYON NOTLARI (Ağustos 2025 - v5.0 - Stabil & Genişletilmiş):
-# 1. Tam Modüler Entegrasyon: GES modülü, diğer modüllerle tam uyumlu şekilde eklendi.
-# 2. Hata Giderimi: Önceki sürümdeki `IndentationError` ve state yönetimi hataları düzeltildi.
-# 3. Tutarlılık: Endüstriyel ve RES modüllerinin test edilmiş ve onaylanmış mantığı
-#    tamamen korunmuştur.
+# GÜNCEL REVİZYON NOTLARI (Ağustos 2025 - v5.1 - HES Modülü Aktif):
+# 1. HES Modülü Entegrasyonu: Hidroelektrik Santralleri için özelleştirilmiş
+#    girdiler, hesaplama motoru ve AI raporlaması sisteme eklendi.
+# 2. Bütüncül Enerji Modülü: RES, GES ve HES modüllerinin tamamlanmasıyla
+#    Enerji Santralleri analiz yeteneği bütüncül hale getirildi.
+# 3. Stabilite: Tüm modüllerin bir arada ve birbiriyle tutarlı bir şekilde
+#    çalışması sağlandı. Mevcut çalışan yapı tamamen korundu.
 
 import streamlit as st
 import pandas as pd
@@ -48,20 +50,24 @@ T = {
     "endustriyel_tesis": {"TR": "Endüstriyel Tesis (Fabrika, Depo vb.)", "EN": "Industrial Facility (Factory, Warehouse etc.)"},
     "res": {"TR": "Enerji Santrali - Rüzgar (RES)", "EN": "Power Plant - Wind (WPP)"},
     "ges": {"TR": "Enerji Santrali - Güneş (GES)", "EN": "Power Plant - Solar (SPP)"},
-    "hes": {"TR": "Enerji Santrali - Hidroelektrik (HES) (Yakında)", "EN": "Power Plant - Hydroelectric (HPP) (Coming Soon)"},
-    "yakinda": {"TR": "💡 Bu modül şu anda geliştirme aşamasındadır. Yakında hizmetinizde olacak!", "EN": "💡 This module is currently under development. It will be available soon!"},
+    "hes": {"TR": "Enerji Santrali - Hidroelektrik (HES)", "EN": "Power Plant - Hydroelectric (HPP)"},
     "inputs_header": {"TR": "📊 2. Senaryo Girdileri", "EN": "📊 2. Scenario Inputs"},
     "base_header": {"TR": "🏭 Temel Bilgiler", "EN": "🏭 Basic Information"},
     "pd_header": {"TR": "🧱 Yapısal & Çevresel Riskler", "EN": "🧱 Structural & Environmental Risks"},
     "bi_header": {"TR": "📈 Operasyonel & BI Riskleri", "EN": "📈 Operational & BI Risks"},
     "res_header": {"TR": "💨 RES'e Özgü Riskler", "EN": "💨 WPP-Specific Risks"},
     "ges_header": {"TR": "☀️ GES'e Özgü Riskler", "EN": "☀️ SPP-Specific Risks"},
+    "hes_header": {"TR": "🌊 HES'e Özgü Riskler", "EN": "🌊 HPP-Specific Risks"},
     "activity_desc_industrial": {"TR": "Süreç, Ekipman ve Stoklara Dair Ek Detaylar", "EN": "Additional Details on Processes, Equipment, and Stock"},
     "activity_desc_res": {"TR": "Türbin, Saha ve Ekipmanlara Dair Ek Detaylar", "EN": "Additional Details on Turbines, Site, and Equipment"},
     "activity_desc_ges": {"TR": "Panel, Arazi ve İnverterlere Dair Ek Detaylar", "EN": "Additional Details on Panels, Land, and Inverters"},
+    "activity_desc_hes": {"TR": "Baraj, Tünel ve Santral Binasına Dair Ek Detaylar", "EN": "Additional Details on Dam, Tunnels, and Powerhouse"},
     "si_pd": {"TR": "Toplam Sigorta Bedeli (PD)", "EN": "Total Sum Insured (PD)"},
     "risk_zone": {"TR": "Deprem Risk Bölgesi", "EN": "Earthquake Risk Zone"},
     "gross_profit": {"TR": "Yıllık Brüt Kâr (GP)", "EN": "Annual Gross Profit (GP)"},
+    "baraj_tipi": {"TR": "Baraj Tipi", "EN": "Dam Type"},
+    "tesis_yili": {"TR": "Tesisin İnşa Yılı", "EN": "Facility Construction Year"},
+    "santral_konumu": {"TR": "Santral Binasının Konumu", "EN": "Powerhouse Location"},
     "panel_montaj": {"TR": "Panel Montaj Tipi", "EN": "Panel Mounting Type"},
     "arazi_topo": {"TR": "Arazinin Topoğrafyası", "EN": "Land Topography"},
     "inverter_mimari": {"TR": "İnverter Mimarisi", "EN": "Inverter Architecture"},
@@ -86,7 +92,7 @@ def tr(key: str) -> str:
 def money(x: float) -> str:
     return f"{x:,.0f} ₺".replace(",", ".")
 
-# --- GİRDİ VE HESAPLAMA MODELLERİ (MODÜLER YAPI) ---
+# --- GİRDİ VE HESAPLAMA MODELLERİ ---
 @dataclass
 class IndustrialInputs:
     faaliyet_tanimi: str = "Otomotiv ana sanayiye metal şasi parçaları üreten bir tesis. Tesiste 5 adet 1000 tonluk hidrolik pres, CNC makineleri ve robotik kaynak hatları bulunmaktadır. Yüksek raflarda rulo sac malzeme stoklanmaktadır."
@@ -105,12 +111,18 @@ class GESInputs:
     panel_montaj_tipi: str = "Tek Eksenli Takipçi Sistem (Tracker)"; arazi_topografyasi: str = "Düz Ova / Düşük Eğimli Arazi"; inverter_mimarisi: str = "Merkezi İnverter"; bi_gun_muafiyeti: int = 30
 
 @dataclass
+class HESInputs:
+    ek_detaylar: str = "Artvin'de, 1985 yılında inşa edilmiş, gövdeye bitişik santral binası olan bir baraj."
+    baraj_tipi: str = "Toprak / Kaya Dolgu"; tesis_yili: str = "1990 öncesi"; santral_konumu: str = "Baraj Gövdesine Bitişik / İçinde"; bi_gun_muafiyeti: int = 60
+
+@dataclass
 class ScenarioInputs:
     tesis_tipi: str = tr("endustriyel_tesis")
     si_pd: int = 500_000_000; yillik_brut_kar: int = 200_000_000; rg: int = 1; azami_tazminat_suresi: int = 365
     industrial_params: IndustrialInputs = field(default_factory=IndustrialInputs)
     res_params: RESInputs = field(default_factory=RESInputs)
     ges_params: GESInputs = field(default_factory=GESInputs)
+    hes_params: HESInputs = field(default_factory=HESInputs)
     icerik_hassasiyeti: str = "Orta"; ffe_riski: str = "Orta"; kritik_makine_bagimliligi: str = "Orta"
 
 # --- TEKNİK HESAPLAMA ÇEKİRDEĞİ ---
@@ -175,6 +187,23 @@ def calculate_bi_downtime_ges(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, 
     final_downtime = min(s.azami_tazminat_suresi, gross_downtime)
     return max(0, gross_downtime), max(0, int(final_downtime))
 
+def calculate_pd_damage_hes(s: ScenarioInputs) -> Dict[str, float]:
+    p = s.hes_params
+    FACTORS = {"baraj_tipi": {"Beton Ağırlık / Kemer": 1.0, "Toprak / Kaya Dolgu": 1.4, "Nehir Tipi (Barajsız / Regülatör)": 0.5}, "tesis_yili": {"1990 öncesi": 1.5, "1990-2010 arası": 1.1, "2010 sonrası": 0.9}}
+    base_oran = _DEPREM_ORAN.get(s.rg, 0.13) * 0.8
+    factor = FACTORS["baraj_tipi"].get(p.baraj_tipi, 1.0) * FACTORS["tesis_yili"].get(p.tesis_yili, 1.0)
+    pml_ratio = min(0.80, max(0.02, base_oran * factor))
+    return {"damage_amount": s.si_pd * pml_ratio, "pml_ratio": pml_ratio}
+
+def calculate_bi_downtime_hes(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, int]:
+    p = s.hes_params
+    base_repair_days = 90 + (pd_ratio * 500); operational_factor = 1.0
+    if p.santral_konumu == "Baraj Gövdesine Bitişik / İçinde": operational_factor *= 1.3
+    gross_downtime = int(base_repair_days * operational_factor)
+    if s.rg in [1, 2]: gross_downtime += 60
+    final_downtime = min(s.azami_tazminat_suresi, gross_downtime)
+    return max(0, gross_downtime), max(0, int(final_downtime))
+
 def get_allowed_options(si_pd: int) -> Tuple[List[str], List[float]]:
     koas_opts = list(KOAS_FACTORS.keys())[:9]; muaf_opts = list(MUAFIYET_FACTORS.keys())[:5]
     if si_pd > 3_500_000_000: koas_opts.extend(list(KOAS_FACTORS.keys())[9:]); muaf_opts.extend(list(MUAFIYET_FACTORS.keys())[5:])
@@ -235,29 +264,37 @@ def generate_technical_assessment(s: ScenarioInputs, triggered_rules: List[str])
         p = s.res_params
         prompt = f"""
         Rolün: TariffEQ için çalışan uzman bir AI teknik underwriter'ı (Rüzgar Enerji Santralleri).
-        Görevin: Sana iletilen yapılandırılmış ve serbest metin girdilerini sentezleyerek, en önemli 2-3 risk faktörünü seçip bir RES tesisi için görsel ve ikna edici bir "AI Teknik Risk Değerlendirmesi" oluşturmak.
-        Kesin Kurallar: Başlık "### 🧠 AI Teknik Risk Değerlendirmesi (Rüzgar Enerji Santrali)" olacak. Emoji kullan (💨, 🏔️, ⚡️). Her faktörü "Tespit:" ve "Etki:" ile açıkla. Sonunda "Sonuçsal Beklenti:" başlığıyla kalitatif yorum yap. ASLA PML oranı verme.
         Gerekçelendirme Talimatı: 'Tespitlerini' yaparken, hem yapılandırılmış girdilerden (örn: 'Türbin Yaşı: 10+ yıl') hem de serbest metindeki anahtar kelimelerden (örn: metindeki 'Nordex N90' ifadesi) çıkarımlar yap. 'YUMUSAK_ZEMIN' için 'salınım (rocking) etkisi' ve 'kule-temel birleşimi' risklerini vurgula. 'ESKI_TEKNOLOJI' için 'dişli kutusu (gearbox) hizalanması' ve 'metal yorgunluğu' risklerini vurgula. 'STANDART_SALT_SAHASI' için ise 'porselen izolatör' kırılganlığının BI için en zayıf halka olduğunu belirt.
         ---
         YAPILANDIRILMIŞ GİRDİLER: Türbin Yaşı: {p.turbin_yas}, Arazi Durumu: {p.arazi_jeoteknik}, Şalt Sahası: {p.salt_sahasi}, Risk Bölgesi: {s.rg}
         SERBEST METİN (Ek Detaylar): "{p.ek_detaylar}"
         SİSTEM TARAFINDAN TESPİT EDİLEN AKTİF RİSK FAKTÖRLERİ: {triggered_rules}
         ---
-        Lütfen bu bilgilerle Teknik Risk Değerlendirmesini oluştur.
+        Lütfen bu bilgilerle "### 🧠 AI Teknik Risk Değerlendirmesi (Rüzgar Enerji Santrali)" başlıklı, emojili (💨, 🏔️, ⚡️), "Tespit:", "Etki:", "Sonuçsal Beklenti:" içeren, PML oranı belirtmeyen bir Markdown raporu oluştur.
         """
     elif s.tesis_tipi == tr("ges"):
         p = s.ges_params
         prompt = f"""
         Rolün: TariffEQ için çalışan uzman bir AI teknik underwriter'ı (Güneş Enerji Santralleri).
-        Görevin: Sana iletilen yapılandırılmış ve serbest metin girdilerini sentezleyerek, en önemli 2-3 risk faktörünü seçip bir GES tesisi için görsel ve ikna edici bir "AI Teknik Risk Değerlendirmesi" oluşturmak.
-        Kesin Kurallar: Başlık "### 🧠 AI Teknik Risk Değerlendirmesi (Güneş Enerji Santrali)" olacak. Emoji kullan (☀️, 🏞️, 🔌). Her faktörü "Tespit:" ve "Etki:" ile açıkla. Sonunda "Sonuçsal Beklenti:" başlığıyla kalitatif yorum yap. ASLA PML oranı verme.
         Gerekçelendirme Talimatı: 'Tespitlerini' yaparken, girdilerden çıkarımlar yap. 'Tracker' için mekanik zafiyet, 'Eğimli Arazi' için şev stabilitesi/zincirleme hasar, 'Merkezi İnverter' için ise 'tek hata noktası' ve BI riskini vurgula.
         ---
         YAPILANDIRILMIŞ GİRDİLER: Panel Montaj Tipi: {p.panel_montaj_tipi}, Arazi Topoğrafyası: {p.arazi_topografyasi}, İnverter Mimarisi: {p.inverter_mimarisi}
         SERBEST METİN (Ek Detaylar): "{p.ek_detaylar}"
         SİSTEM TARAFINDAN TESPİT EDİLEN AKTİฟF RİSK FAKTÖRLERİ: {triggered_rules}
         ---
-        Lütfen bu bilgilerle Teknik Risk Değerlendirmesini oluştur.
+        Lütfen bu bilgilerle "### 🧠 AI Teknik Risk Değerlendirmesi (Güneş Enerji Santrali)" başlıklı, emojili (☀️, 🏞️, 🔌), "Tespit:", "Etki:", "Sonuçsal Beklenti:" içeren, PML oranı belirtmeyen bir Markdown raporu oluştur.
+        """
+    elif s.tesis_tipi == tr("hes"):
+        p = s.hes_params
+        prompt = f"""
+        Rolün: TariffEQ için çalışan uzman bir AI teknik underwriter'ı (Hidroelektrik Santraller).
+        Gerekçelendirme Talimatı: 'Tespitlerini' yaparken, '1990 öncesi' için eski sismik tasarım kodlarına, 'Toprak/Kaya Dolgu' için içsel erozyon ve şev stabilitesi risklerine, 'Gövdeye Bitişik Santral' için ise türbin-jeneratör hizalanmasının bozulması riskine ve bunun BI'a olan kritik etkisine odaklan.
+        ---
+        YAPILANDIRILMIŞ GİRDİLER: Baraj Tipi: {p.baraj_tipi}, Tesis Yılı: {p.tesis_yili}, Santral Konumu: {p.santral_konumu}
+        SERBEST METİN (Ek Detaylar): "{p.ek_detaylar}"
+        SİSTEM TARAFINDAN TESPİT EDİLEN AKTİF RİSK FAKTÖRLERİ: {triggered_rules}
+        ---
+        Lütfen bu bilgilerle "### 🧠 AI Teknik Risk Değerlendirmesi (Hidroelektrik Santral)" başlıklı, emojili (🌊, 🏗️, ⚙️), "Tespit:", "Etki:", "Sonuçsal Beklenti:" içeren, PML oranı belirtmeyen bir Markdown raporu oluştur.
         """
     else: return "Seçilen tesis tipi için AI değerlendirmesi henüz aktif değil."
     
@@ -318,8 +355,15 @@ def main():
         with col3:
             st.subheader(tr("bi_header")); s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay"); p_ges.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [30, 45, 60, 90])
     
-    else: st.info(tr("yakinda")); st.stop()
-        
+    elif s_inputs.tesis_tipi == tr("hes"):
+        p_hes = s_inputs.hes_params; col1, col2, col3 = st.columns(3)
+        with col1:
+            st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000); p_hes.ek_detaylar = st.text_area(tr("activity_desc_hes"), p_hes.ek_detaylar, height=125, placeholder="Örn: Artvin'de, 1985 yılında inşa edilmiş, gövdeye bitişik santral binası olan bir baraj.")
+        with col2:
+            st.subheader(tr("hes_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg); p_hes.baraj_tipi = st.selectbox(tr("baraj_tipi"), ["Beton Ağırlık / Kemer", "Toprak / Kaya Dolgu", "Nehir Tipi (Barajsız / Regülatör)"]); p_hes.tesis_yili = st.selectbox(tr("tesis_yili"), ["1990 öncesi", "1990-2010 arası", "2010 sonrası"]); p_hes.santral_konumu = st.selectbox(tr("santral_konumu"), ["Baraj Gövdesine Bitişik / İçinde", "Yeraltı (Kavern)", "Barajdan Ayrı / Uzak"])
+        with col3:
+            st.subheader(tr("bi_header")); s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay"); p_hes.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [60, 90, 120, 180])
+
     st.markdown("---")
     if st.button(f"🚀 {tr('btn_run')}", use_container_width=True, type="primary"):
         st.session_state.run_clicked = True; st.session_state.s_inputs = s_inputs; st.session_state.errors = []
@@ -360,6 +404,16 @@ def main():
             pd_results = calculate_pd_damage_ges(s_inputs)
             gross_bi_days, net_bi_days_raw = calculate_bi_downtime_ges(pd_results["pml_ratio"], s_inputs)
             net_bi_days_final = max(0, net_bi_days_raw - p_ges.bi_gun_muafiyeti)
+            tarife_yapi_turu = "Diğer"
+            
+        elif s_inputs.tesis_tipi == tr("hes"):
+            p_hes = s_inputs.hes_params
+            if "1990 öncesi" in p_hes.tesis_yili: triggered_rules.append("ESKI_TASARIM_KODU")
+            if "Toprak / Kaya Dolgu" in p_hes.baraj_tipi: triggered_rules.append("DOLGU_BARAJ_RISKI")
+            if "Bitişik" in p_hes.santral_konumu: triggered_rules.append("HIZALANMA_RISKI")
+            pd_results = calculate_pd_damage_hes(s_inputs)
+            gross_bi_days, net_bi_days_raw = calculate_bi_downtime_hes(pd_results["pml_ratio"], s_inputs)
+            net_bi_days_final = max(0, net_bi_days_raw - p_hes.bi_gun_muafiyeti)
             tarife_yapi_turu = "Diğer"
         
         st.header(tr("ai_pre_analysis_header"))
