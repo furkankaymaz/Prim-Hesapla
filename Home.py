@@ -7,12 +7,15 @@
 # mantığı ile ticari/sınai rizikolar için profesyonel seviyede bir deprem
 # hasar analizi sunar.
 #
-# GÜNCEL REVİZYON NOTLARI (Ağustos 2025 - v4.3 - Stabil):
-# 1. Hata Giderimi: Önceki versiyonlarda karşılaşılan tüm hatalar giderildi.
-# 2. Stabil Modüler Mimari: Endüstriyel Tesis modülü orijinal haliyle korunarak,
-#    RES modülü çalışan ve tutarlı bir şekilde sisteme eklendi.
-# 3. Tam Fonksiyonel RES Modülü: RES için tüm adımlar (Girdi, AI Analizi,
-#    Sayısal Hesaplama, Poliçe Alternatifleri) artık sorunsuz çalışmaktadır.
+# GÜNCEL REVİZYON NOTLARI (Ağustos 2025 - v4.3 - Final):
+# 1. Tam Modüler Entegrasyon: RES modülü, hesaplama ve poliçe analizi dahil
+#    olmak üzere tüm özellikleriyle ana yapıya sorunsuz şekilde entegre edildi.
+# 2. Akıllı Girdi Optimizasyonu: Metin alanları, kullanıcının daha önce seçtiği
+#    bilgileri tekrar girmesini önleyecek şekilde yeniden tasarlandı.
+# 3. Gelişmiş AI Sentezi: AI, artık yapılandırılmış girdiler (dropdown'lar) ile
+#    serbest metin girdisini birleştirerek çok daha derinlemesine analizler yapıyor.
+# 4. Hata Giderimi ve Stabilite: Önceki tüm hatalar giderildi ve kodun kararlı
+#    çalışması sağlandı.
 
 import streamlit as st
 import pandas as pd
@@ -100,7 +103,7 @@ class RESInputs:
 
 @dataclass
 class ScenarioInputs:
-    tesis_tipi: str = "Endüstriyel Tesis (Fabrika, Depo vb.)"
+    tesis_tipi: str = tr("endustriyel_tesis")
     si_pd: int = 500_000_000
     yillik_brut_kar: int = 200_000_000
     rg: int = 1
@@ -138,7 +141,7 @@ def calculate_bi_downtime_industrial(pd_ratio: float, s: ScenarioInputs) -> Tupl
 
 def calculate_pd_damage_res(s: ScenarioInputs) -> Dict[str, float]:
     p = s.res_params
-    FACTORS = {"turbin_yas": {"5 yıldan yeni (Modern Teknoloji)": 0.9, "5-10 yıl arası (Olgun Teknoloji)": 1.0, "10+ yıl (Eski Teknoloji)": 1.2}, "arazi_jeoteknik": {"Kayalık ve Sağlam Zeminli Tepe": 0.85, "Yumuşak Zeminli / Toprak Tepe veya Ova": 1.3}}
+    FACTORS = {"turbin_yas": {"5 yıldan yeni (Modern Teknoloji)": 0.9, "5-10 yıl arası (Olgun Teknoloji)": 1.0, "10+ yıl (Eski Teknoloji)": 1.25}, "arazi_jeoteknik": {"Kayalık ve Sağlam Zeminli Tepe": 0.85, "Yumuşak Zeminli / Toprak Tepe veya Ova": 1.35}}
     base_oran = _DEPREM_ORAN.get(s.rg, 0.13) * 0.5
     factor = FACTORS["turbin_yas"].get(p.turbin_yas, 1.0) * FACTORS["arazi_jeoteknik"].get(p.arazi_jeoteknik, 1.0)
     pml_ratio = min(0.40, max(0.01, base_oran * factor))
@@ -148,6 +151,7 @@ def calculate_bi_downtime_res(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, 
     p = s.res_params
     base_repair_days = 45 + (pd_ratio * 400); operational_factor = 1.0
     if p.salt_sahasi == "Standart Ekipman (Özel bir önlem yok)": operational_factor *= 1.5
+    if "10+" in p.turbin_yas: operational_factor *= 1.1 # Eski türbinlerin onarımı daha uzun sürer (dişli kutusu vb.)
     gross_downtime = int(base_repair_days * operational_factor)
     if s.rg in [1, 2]: gross_downtime += 45
     final_downtime = min(s.azami_tazminat_suresi, gross_downtime)
@@ -216,9 +220,9 @@ def generate_technical_assessment(s: ScenarioInputs, triggered_rules: List[str])
         Rolün: TariffEQ için çalışan uzman bir AI teknik underwriter'ı (Rüzgar Enerji Santralleri).
         Görevin: Sana iletilen yapılandırılmış ve serbest metin girdilerini sentezleyerek, en önemli 2-3 risk faktörünü seçip bir RES tesisi için görsel ve ikna edici bir "AI Teknik Risk Değerlendirmesi" oluşturmak.
         Kesin Kurallar: Başlık "### 🧠 AI Teknik Risk Değerlendirmesi (Rüzgar Enerji Santrali)" olacak. Emoji kullan (💨, 🏔️, ⚡️). Her faktörü "Tespit:" ve "Etki:" ile açıkla. Sonunda "Sonuçsal Beklenti:" başlığıyla kalitatif yorum yap. ASLA PML oranı verme.
-        Gerekçelendirme Talimatı: 'Tespitlerini' yaparken, hem yapılandırılmış girdilerden (örn: 'Türbin Yaşı: 10+ yıl') hem de serbest metindeki anahtar kelimelerden (örn: metindeki 'Nordex N90' ifadesi) çıkarımlar yap.
+        Gerekçelendirme Talimatı: 'Tespitlerini' yaparken, hem yapılandırılmış girdilerden (örn: 'Türbin Yaşı: 10+ yıl') hem de serbest metindeki anahtar kelimelerden (örn: metindeki 'Nordex N90' ifadesi) çıkarımlar yap. 'YUMUSAK_ZEMIN' için 'salınım (rocking) etkisi' ve 'kule-temel birleşimi' risklerini vurgula. 'ESKI_TEKNOLOJI' için 'dişli kutusu (gearbox) hizalanması' ve 'metal yorgunluğu' risklerini vurgula. 'STANDART_SALT_SAHASI' için ise 'porselen izolatör' kırılganlığının BI için en zayıf halka olduğunu belirt.
         ---
-        YAPILANDIRILMIŞ GİRDİLER: Türbin Yaşı: {p.turbin_yas}, Arazi Durumu: {p.arazi_jeoteknik}, Şalt Sahası: {p.salt_sahasi}
+        YAPILANDIRILMIŞ GİRDİLER: Türbin Yaşı: {p.turbin_yas}, Arazi Durumu: {p.arazi_jeoteknik}, Şalt Sahası: {p.salt_sahasi}, Risk Bölgesi: {s.rg}
         SERBEST METİN (Ek Detaylar): "{p.ek_detaylar}"
         SİSTEM TARAFINDAN TESPİT EDİLEN AKTİF RİSK FAKTÖRLERİ: {triggered_rules}
         ---
@@ -250,8 +254,14 @@ def main():
         st.session_state.run_clicked = False
         st.session_state.s_inputs = ScenarioInputs(tesis_tipi=st.session_state.tesis_tipi_selector)
 
+    try:
+        current_index = tesis_tipi_secenekleri.index(st.session_state.s_inputs.tesis_tipi)
+    except ValueError:
+        st.session_state.s_inputs = ScenarioInputs()
+        current_index = 0
+    
     selected_tesis_tipi = st.selectbox(tr("tesis_tipi_secimi"), tesis_tipi_secenekleri, 
-                                       index=tesis_tipi_secenekleri.index(st.session_state.s_inputs.tesis_tipi), 
+                                       index=current_index, 
                                        on_change=on_tesis_tipi_change, key="tesis_tipi_selector")
     
     s_inputs = st.session_state.s_inputs
@@ -263,21 +273,18 @@ def main():
         p_ind = s_inputs.industrial_params
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.subheader(tr("base_header"))
-            s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
+            st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
             p_ind.faaliyet_tanimi = st.text_area(tr("activity_desc_industrial"), p_ind.faaliyet_tanimi, height=200, placeholder="Örn: ...hidrolik presler, CNC makineleri ve robotik kaynak hatları bulunmaktadır. Yüksek raflarda rulo sac malzeme stoklanmaktadır.")
         with col2:
-            st.subheader(tr("pd_header"))
-            s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
-            p_ind.yapi_turu = st.selectbox("Yapı Türü", ["Betonarme", "Çelik", "Yığma", "Diğer"], index=["Betonarme", "Çelik", "Yığma", "Diğer"].index(p_ind.yapi_turu))
-            p_ind.yonetmelik_donemi = st.selectbox("Yönetmelik Dönemi", ["1998 öncesi (Eski Yönetmelik)", "1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)"], index=["1998 öncesi (Eski Yönetmelik)", "1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)"].index(p_ind.yonetmelik_donemi))
-            p_ind.kat_sayisi = st.selectbox("Kat Sayısı", ["1-3 kat", "4-7 kat", "8+ kat"], index=["1-3 kat", "4-7 kat", "8+ kat"].index(p_ind.kat_sayisi))
-            p_ind.zemin_sinifi = st.selectbox("Zemin Sınıfı", ["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"], index=["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"].index(p_ind.zemin_sinifi))
+            st.subheader(tr("pd_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
+            p_ind.yapi_turu = st.selectbox("Yapı Türü", ["Betonarme", "Çelik", "Yığma", "Diğer"])
+            p_ind.yonetmelik_donemi = st.selectbox("Yönetmelik Dönemi", ["1998 öncesi (Eski Yönetmelik)", "1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)"])
+            p_ind.kat_sayisi = st.selectbox("Kat Sayısı", ["1-3 kat", "4-7 kat", "8+ kat"])
+            p_ind.zemin_sinifi = st.selectbox("Zemin Sınıfı", ["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"])
             p_ind.yakin_cevre = st.selectbox("Tesisin Yakın Çevresi", ["Nehir Yatağı / Göl Kenarı / Kıyı Şeridi", "Ana Karada / Düz Ova", "Dolgu Zemin Üzerinde"])
             p_ind.yumusak_kat_riski = st.selectbox(tr("yumusak_kat"), ["Hayır", "Evet"], help=tr("yumusak_kat_help"))
         with col3:
-            st.subheader(tr("bi_header"))
-            s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
+            st.subheader(tr("bi_header")); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
             p_ind.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [14, 21, 30, 45, 60])
             s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay")
             p_ind.isp_varligi = st.selectbox("İş Sürekliliği Planı", ["Yok (Varsayılan)", "Var (Test Edilmemiş)", "Var (Test Edilmiş)"])
@@ -288,7 +295,9 @@ def main():
         p_res = s_inputs.res_params
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
+            st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
+            s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
+            p_res.ek_detaylar = st.text_area(tr("activity_desc_res"), p_res.ek_detaylar, height=125, placeholder="Örn: Manisa'da, temel iyileştirmesi yapılmış bir yamaçta kurulu 25 adet 8 yıllık Nordex N90 türbini...")
         with col2:
             st.subheader(tr("res_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
             p_res.turbin_yas = st.selectbox(tr("turbin_yas"), ["5 yıldan yeni (Modern Teknoloji)", "5-10 yıl arası (Olgun Teknoloji)", "10+ yıl (Eski Teknoloji)"])
@@ -297,12 +306,12 @@ def main():
         with col3:
             st.subheader(tr("bi_header")); s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay")
             p_res.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [30, 45, 60, 90])
-            p_res.ek_detaylar = st.text_area(tr("activity_desc_res"), p_res.ek_detaylar, height=125, placeholder="Örn: Manisa'da, temel iyileştirmesi yapılmış bir yamaçta kurulu 25 adet 8 yıllık Nordex N90 türbini...")
     
     else:
         st.info(tr("yakinda")); st.stop()
         
     st.markdown("---")
+    
     if st.button(f"🚀 {tr('btn_run')}", use_container_width=True, type="primary"):
         st.session_state.run_clicked = True
         st.session_state.s_inputs = s_inputs
@@ -318,7 +327,11 @@ def main():
                 s_inputs.icerik_hassasiyeti, s_inputs.kritik_makine_bagimliligi = ai_params["icerik_hassasiyeti"], ai_params["kritik_makine_bagimliligi"]
             p_ind = s_inputs.industrial_params
             if p_ind.yapi_turu == "Betonarme" and "1998 öncesi" in p_ind.yonetmelik_donemi: triggered_rules.append("ESKI_PREFABRIK_RISKI")
-            # ... (diğer endüstriyel kurallar) ...
+            if p_ind.yapi_turu == "Çelik" and "1998 öncesi" in p_ind.yonetmelik_donemi: triggered_rules.append("CELIK_KAYNAK_RISKI")
+            if p_ind.zemin_sinifi in ["ZD", "ZE"] and p_ind.yakin_cevre != "Ana Karada / Düz Ova": triggered_rules.append("SIVILASMA_RISKI")
+            if p_ind.yumusak_kat_riski == "Evet": triggered_rules.append("YUMUSAK_KAT_RISKI")
+            if s_inputs.icerik_hassasiyeti == 'Yüksek' or s_inputs.kritik_makine_bagimliligi == 'Yüksek': triggered_rules.append("SEKTOREL_HASSASIYET")
+            if s_inputs.rg in [1, 2]: triggered_rules.append("ALTYAPI_RISKI")
             pd_results = calculate_pd_damage_industrial(s_inputs)
             gross_bi_days, net_bi_days_raw = calculate_bi_downtime_industrial(pd_results["pml_ratio"], s_inputs)
             net_bi_days_final = max(0, net_bi_days_raw - p_ind.bi_gun_muafiyeti)
@@ -354,8 +367,12 @@ def main():
         results = []
         for koas in koas_opts:
             for muaf in muaf_opts:
-                prim_pd = calculate_premium(s_inputs.si_pd, tarife_yapi_turu, s_inputs.rg, koas, muaf); prim_bi = calculate_premium(s_inputs.yillik_brut_kar, tarife_yapi_turu, s_inputs.rg, koas, muaf, is_bi=True); toplam_prim = prim_pd + prim_bi
-                pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf); total_payout = pd_claim["net_tazminat"] + bi_damage_amount; retained_risk = (pd_damage_amount + bi_damage_amount) - total_payout
+                prim_pd = calculate_premium(s_inputs.si_pd, tarife_yapi_turu, s_inputs.rg, koas, muaf)
+                prim_bi = calculate_premium(s_inputs.yillik_brut_kar, tarife_yapi_turu, s_inputs.rg, koas, muaf, is_bi=True)
+                toplam_prim = prim_pd + prim_bi
+                pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf)
+                total_payout = pd_claim["net_tazminat"] + bi_damage_amount
+                retained_risk = (pd_damage_amount + bi_damage_amount) - total_payout
                 verimlilik_skoru = (total_payout / toplam_prim if toplam_prim > 0 else 0) - (retained_risk / s_inputs.si_pd if s_inputs.si_pd > 0 else 0)
                 results.append({"Poliçe Yapısı": f"{koas} / {muaf}%", "Yıllık Toplam Prim": toplam_prim, "Toplam Net Tazminat": total_payout, "Sigortalıda Kalan Risk": retained_risk, "Verimlilik Skoru": verimlilik_skoru})
         df = pd.DataFrame(results).sort_values("Verimlilik Skoru", ascending=False).reset_index(drop=True)
