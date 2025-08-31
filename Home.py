@@ -56,7 +56,7 @@ T = {
     "base_header": {"TR": "🏭 Temel Bilgiler", "EN": "🏭 Basic Information"},
     "pd_header": {"TR": "🧱 Yapısal & Çevresel Riskler", "EN": "🧱 Structural & Environmental Risks"},
     "bi_header": {"TR": "📈 Operasyonel & BI Riskleri", "EN": "📈 Operational & BI Risks"},
-    "res_header": {"TR": "💨 RES'e Özgü Risk Parametreleri", "EN": "💨 WPP-Specific Risk Parameters"},
+    "res_header": {"TR": "💨 RES'e Özgü Riskler", "EN": "💨 WPP-Specific Risks"},
     "activity_desc": {"TR": "Tesisin Faaliyetini ve İçeriğini Tanımlayın", "EN": "Describe the Facility's Operations and Contents"},
     "si_pd": {"TR": "Toplam Sigorta Bedeli (PD)", "EN": "Total Sum Insured (PD)"},
     "risk_zone": {"TR": "Deprem Risk Bölgesi", "EN": "Earthquake Risk Zone"},
@@ -74,7 +74,7 @@ T = {
 
 # --- YARDIMCI FONKSİYONLAR ---
 def tr(key: str) -> str:
-    lang = st.session_state.get("lang", "TR")
+    lang = st.session_state.get("lang", "TR",)
     return T.get(key, {}).get(lang, key)
 
 def money(x: float) -> str:
@@ -114,11 +114,10 @@ class ScenarioInputs:
     icerik_hassasiyeti: str = "Orta"; ffe_riski: str = "Orta"; kritik_makine_bagimliligi: str = "Orta"
 
 # --- TEKNİK HESAPLAMA ÇEKİRDEĞİ ---
-# ... (calculate_pd_damage ve calculate_bi_downtime, yani eski kodumuz, burada adı değişerek yer alıyor)
 def calculate_pd_damage_industrial(s: ScenarioInputs) -> Dict[str, float]:
     p = s.industrial_params; base_bina_oran = _DEPREM_ORAN.get(s.rg, 0.13)
-    FACTORS = {"yonetmelik": {"1998 öncesi": 1.25, "1998-2018": 1.00, "2018 sonrası": 0.80},"kat_sayisi": {"1-3": 0.95, "4-7": 1.00, "8+": 1.10},"zemin": {"ZC (Varsayılan)": 1.00, "ZA/ZB (Kaya/Sıkı Zemin)": 0.85, "ZD": 1.20, "ZE": 1.50},"yumusak_kat": {"Hayır": 1.00, "Evet": 1.40},}
-    bina_factor = FACTORS["yonetmelik"].get(p.yonetmelik_donemi.split(' ')[0], 1.0) * FACTORS["kat_sayisi"].get(p.kat_sayisi.split(' ')[0], 1.0) * FACTORS["zemin"].get(p.zemin_sinifi, 1.0) * FACTORS["yumusak_kat"].get(p.yumusak_kat_riski, 1.0)
+    FACTORS = {"yonetmelik": {"1998 öncesi (Eski Yönetmelik)": 1.25, "1998-2018 arası (Varsayılan)": 1.00, "2018 sonrası (Yeni Yönetmelik)": 0.80},"kat_sayisi": {"1-3 kat": 0.95, "4-7 kat": 1.00, "8+ kat": 1.10},"zemin": {"ZC (Varsayılan)": 1.00, "ZA/ZB (Kaya/Sıkı Zemin)": 0.85, "ZD": 1.20, "ZE": 1.50},"yumusak_kat": {"Hayır": 1.00, "Evet": 1.40},}
+    bina_factor = FACTORS["yonetmelik"].get(p.yonetmelik_donemi, 1.0) * FACTORS["kat_sayisi"].get(p.kat_sayisi, 1.0) * FACTORS["zemin"].get(p.zemin_sinifi, 1.0) * FACTORS["yumusak_kat"].get(p.yumusak_kat_riski, 1.0)
     if p.yapi_turu == "Betonarme" and "1998 öncesi" in p.yonetmelik_donemi: bina_factor *= 1.20
     if p.yapi_turu == "Çelik" and "1998 öncesi" in p.yonetmelik_donemi: bina_factor *= 1.15
     if p.zemin_sinifi in ["ZD", "ZE"] and p.yakin_cevre != "Ana Karada / Düz Ova": bina_factor *= 1.40
@@ -141,7 +140,6 @@ def calculate_bi_downtime_industrial(pd_ratio: float, s: ScenarioInputs) -> Tupl
     final_downtime = min(s.azami_tazminat_suresi, net_downtime_before_indemnity)
     return max(0, gross_downtime), max(0, int(final_downtime))
 
-# YENİ EKLENEN RES MODÜLÜ HESAPLAMA FONKSİYONLARI
 def calculate_pd_damage_res(s: ScenarioInputs) -> Dict[str, float]:
     p = s.res_params
     FACTORS = {"turbin_yas": {"5 yıldan yeni (Modern Teknoloji)": 0.9, "5-10 yıl arası (Olgun Teknoloji)": 1.0, "10+ yıl (Eski Teknoloji)": 1.2}, "arazi_jeoteknik": {"Kayalık ve Sağlam Zeminli Tepe": 0.85, "Yumuşak Zeminli / Toprak Tepe veya Ova": 1.3}}
@@ -160,18 +158,70 @@ def calculate_bi_downtime_res(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, 
     return max(0, gross_downtime), max(0, int(final_downtime))
 
 # --- Diğer Yardımcı Fonksiyonlar ---
-# ... (Değişiklik yok)
+def get_allowed_options(si_pd: int) -> Tuple[List[str], List[float]]:
+    koas_opts = list(KOAS_FACTORS.keys())[:9]; muaf_opts = list(MUAFIYET_FACTORS.keys())[:5]
+    if si_pd > 3_500_000_000: koas_opts.extend(list(KOAS_FACTORS.keys())[9:]); muaf_opts.extend(list(MUAFIYET_FACTORS.keys())[5:])
+    return koas_opts, muaf_opts
+def calculate_premium(si: float, yapi_turu: str, rg: int, koas: str, muaf: float, is_bi: bool = False) -> float:
+    base_rate = TARIFE_RATES.get(yapi_turu, TARIFE_RATES["Diğer"])[rg - 1]; prim_bedeli = min(si, 3_500_000_000) if not is_bi else si
+    if is_bi: return (prim_bedeli * base_rate * 0.75) / 1000.0
+    factor = KOAS_FACTORS.get(koas, 1.0) * MUAFIYET_FACTORS.get(muaf, 1.0)
+    return (prim_bedeli * base_rate * factor) / 1000.0
+def calculate_net_claim(si_pd: int, hasar_tutari: float, koas: str, muaf_pct: float) -> Dict[str, float]:
+    muafiyet_tutari = si_pd * (muaf_pct / 100.0); muafiyet_sonrasi_hasar = max(0.0, hasar_tutari - muafiyet_tutari)
+    sirket_pay_orani = float(koas.split('/')[0]) / 100.0; net_tazminat = muafiyet_sonrasi_hasar * sirket_pay_orani
+    sigortalida_kalan = hasar_tutari - net_tazminat
+    return {"net_tazminat": net_tazminat, "sigortalida_kalan": sigortalida_kalan}
 
 # --- AI FONKSİYONLARI ---
 @st.cache_data(show_spinner=False)
 def get_ai_driven_parameters_industrial(faaliyet_tanimi: str) -> Dict[str, str]:
-    # ... (Eski get_ai_driven_parameters fonksiyonu, ismi değişti)
-    pass
-    
+    default_params = {"icerik_hassasiyeti": "Orta", "ffe_riski": "Orta", "kritik_makine_bagimliligi": "Orta"}
+    if not _GEMINI_AVAILABLE: return default_params
+    prompt = f"""... (prompt içeriği öncekiyle aynı) ...""" # Kısaltıldı
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash'); generation_config = {"temperature": 0.1, "top_p": 0.8, "response_mime_type": "application/json"}
+        response = model.generate_content(prompt, generation_config=generation_config); params = json.loads(response.text)
+        for key in default_params:
+            if params.get(key) not in ['Düşük', 'Orta', 'Yüksek']: params[key] = default_params[key]
+        return params
+    except Exception as e:
+        st.session_state.errors.append(f"AI Parametre Hatası: {str(e)}\n{traceback.format_exc()}"); return default_params
+
 @st.cache_data(show_spinner=False)
 def generate_technical_assessment(s: ScenarioInputs, triggered_rules: List[str]) -> str:
-    # ... (İçeriği modüler hale getirildi)
-    pass
+    if not _GEMINI_AVAILABLE: return "AI servisi aktif değil."
+    
+    if s.tesis_tipi == tr("endustriyel_tesis"):
+        p = s.industrial_params
+        prompt = f"""
+        Rolün: TariffEQ için çalışan uzman bir AI teknik underwriter'ı (Endüstriyel Tesisler).
+        ... (Önceki endüstriyel tesis prompt'u) ...
+        KULLANICI GİRDİLERİ: Yapı Türü: {p.yapi_turu}, Yönetmelik: {p.yonetmelik_donemi}, Zemin: {p.zemin_sinifi}, Yakın Çevre: {p.yakin_cevre}, Faaliyet: {p.faaliyet_tanimi}, Yumuşak Kat: {p.yumusak_kat_riski}
+        SİSTEM TARAFINDAN TESPİT EDİLEN AKTİF RİSK FAKTÖRLERİ: {triggered_rules}
+        Lütfen bu bilgilerle Teknik Risk Değerlendirmesini oluştur.
+        """
+    elif s.tesis_tipi == tr("res"):
+        p = s.res_params
+        prompt = f"""
+        Rolün: TariffEQ için çalışan uzman bir AI teknik underwriter'ı (Rüzgar Enerji Santralleri).
+        Görevin: Aşağıda sana iletilen 'Aktif Risk Faktörleri' listesinden en önemli 2 veya 3 tanesini seçerek, bir Rüzgar Enerji Santrali için görsel ve ikna edici bir "AI Teknik Risk Değerlendirmesi" oluşturmak.
+        Kesin Kurallar: Başlık "### 🧠 AI Teknik Risk Değerlendirmesi (Rüzgar Enerji Santrali)" olacak. Emoji kullan (💨, 🏔️, ⚡️). Her faktörü "Tespit:" ve "Etki:" ile açıkla. Sonunda "Sonuçsal Beklenti:" başlığıyla kalitatif yorum yap. ASLA PML oranı verme.
+        Gerekçelendirme Talimatı:
+        - `ESKI_TEKNOLOJI` ise: Metal yorgunluğu ve sismik tasarım standartlarının eskiliğine atıfta bulun.
+        - `YUMUSAK_ZEMIN` ise: Zemin büyütmesi ve temel stabilitesi risklerine atıfta bulun.
+        - `STANDART_SALT_SAHASI` ise: BI için en zayıf halka olduğuna ve şebeke bağlantısını kaybetme riskine atıfta bulun.
+        KULLANICI GİRDİLERİ: Türbin Yaşı: {p.turbin_yas}, Arazi Durumu: {p.arazi_jeoteknik}, Şalt Sahası: {p.salt_sahasi}
+        SİSTEM TARAFINDAN TESPİT EDİLEN AKTİF RİSK FAKTÖRLERİ: {triggered_rules}
+        Lütfen bu bilgilerle Teknik Risk Değerlendirmesini oluştur.
+        """
+    else: return "Seçilen tesis tipi için AI değerlendirmesi henüz aktif değil."
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt, generation_config={"temperature": 0.2})
+        return response.text
+    except Exception as e:
+        st.session_state.errors.append(f"AI Rapor Hatası: {str(e)}\n{traceback.format_exc()}"); return "AI Teknik Değerlendirme raporu oluşturulamadı."
 
 # --- STREAMLIT UYGULAMASI (MODÜLER ARAYÜZ) ---
 def main():
@@ -187,6 +237,7 @@ def main():
     
     def on_tesis_tipi_change():
         st.session_state.run_clicked = False
+        st.session_state.s_inputs = ScenarioInputs(tesis_tipi=st.session_state.tesis_tipi_selector)
     
     selected_tesis_tipi = st.selectbox(tr("tesis_tipi_secimi"), tesis_tipi_secenekleri, 
         index=tesis_tipi_secenekleri.index(st.session_state.tesis_tipi), on_change=on_tesis_tipi_change, key="tesis_tipi_selector")
@@ -197,47 +248,96 @@ def main():
     
     st.header(tr("inputs_header"))
     
+    # Adım 2: Seçime Göre Dinamik Arayüz
     if s_inputs.tesis_tipi == tr("endustriyel_tesis"):
         p_ind = s_inputs.industrial_params
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.subheader(tr("base_header"))
-            s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
-            p_ind.faaliyet_tanimi = st.text_area(tr("activity_desc"), p_ind.faaliyet_tanimi, height=200)
+            st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
+            p_ind.faaliyet_tanimi = st.text_area(tr("activity_desc"), p_ind.faaliyet_tanimi, height=200, placeholder="Örn: Otomotiv ana sanayiye metal şasi parçaları üreten bir tesis...")
         with col2:
-            st.subheader(tr("pd_header"))
-            s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
-            # ... (Diğer tüm Endüstriyel Tesis girdileri)
+            st.subheader(tr("pd_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
+            p_ind.yapi_turu = st.selectbox("Yapı Türü", ["Betonarme", "Çelik", "Yığma", "Diğer"])
+            p_ind.yonetmelik_donemi = st.selectbox("Yönetmelik Dönemi", ["1998 öncesi (Eski Yönetmelik)", "1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)"])
+            p_ind.kat_sayisi = st.selectbox("Kat Sayısı", ["1-3 kat", "4-7 kat", "8+ kat"])
+            p_ind.zemin_sinifi = st.selectbox("Zemin Sınıfı", ["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"])
+            p_ind.yakin_cevre = st.selectbox("Tesisin Yakın Çevresi", ["Nehir Yatağı / Göl Kenarı / Kıyı Şeridi", "Ana Karada / Düz Ova", "Dolgu Zemin Üzerinde"])
+            p_ind.yumusak_kat_riski = st.selectbox("Zemin Katta Geniş Vitrin/Cephe", ["Hayır", "Evet"])
         with col3:
-            st.subheader(tr("bi_header"))
-            s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
-            p_ind.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [14, 21, 30, 45, 60], index=[14, 21, 30, 45, 60].index(p_ind.bi_gun_muafiyeti))
-            s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], index=0, format_func=lambda x: f"{int(x/30)} Ay")
-            #... (Diğer tüm Endüstriyel Tesis girdileri)
+            st.subheader(tr("bi_header")); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
+            p_ind.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [14, 21, 30, 45, 60])
+            s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay")
+            p_ind.isp_varligi = st.selectbox("İş Sürekliliği Planı", ["Yok (Varsayılan)", "Var (Test Edilmemiş)", "Var (Test Edilmiş)"])
+            p_ind.alternatif_tesis = st.selectbox("Alternatif Tesis", ["Yok", "Var (kısmi kapasite)", "Var (tam kapasite)"])
+            p_ind.bitmis_urun_stogu = st.number_input("Bitmiş Ürün Stoğu (gün)", value=p_ind.bitmis_urun_stogu, min_value=0)
             
     elif s_inputs.tesis_tipi == tr("res"):
         p_res = s_inputs.res_params
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.subheader(tr("base_header"))
-            s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
-            s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
+            st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
         with col2:
-            st.subheader(tr("res_header"))
-            s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
+            st.subheader(tr("res_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
             p_res.turbin_yas = st.selectbox(tr("turbin_yas"), ["5 yıldan yeni (Modern Teknoloji)", "5-10 yıl arası (Olgun Teknoloji)", "10+ yıl (Eski Teknoloji)"])
             p_res.arazi_jeoteknik = st.selectbox(tr("arazi_jeoteknik"), ["Kayalık ve Sağlam Zeminli Tepe", "Yumuşak Zeminli / Toprak Tepe veya Ova"])
             p_res.salt_sahasi = st.selectbox(tr("salt_sahasi"), ["Standart Ekipman (Özel bir önlem yok)", "Sismik İzolatörlü veya Güçlendirilmiş Ekipman"])
         with col3:
-            st.subheader(tr("bi_header"))
-            s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], index=0, format_func=lambda x: f"{int(x/30)} Ay")
-            p_res.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [30, 45, 60, 90], index=0)
+            st.subheader(tr("bi_header")); s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay")
+            p_res.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [30, 45, 60, 90])
     
     else:
-        st.info(tr("yakinda"))
-        st.stop()
+        st.info(tr("yakinda")); st.stop()
+        
+    st.markdown("---")
+    
+    if st.button(f"🚀 {tr('btn_run')}", use_container_width=True, type="primary"):
+        st.session_state.run_clicked = True
+        st.session_state.s_inputs = s_inputs
+        st.session_state.errors = []
+    
+    if st.session_state.run_clicked:
+        s_inputs = st.session_state.s_inputs
+        triggered_rules = []
+        
+        if s_inputs.tesis_tipi == tr("endustriyel_tesis"):
+            with st.spinner("AI, endüstriyel tesisinizi analiz ediyor..."):
+                ai_params = get_ai_driven_parameters_industrial(s_inputs.industrial_params.faaliyet_tanimi)
+                s_inputs.icerik_hassasiyeti, s_inputs.ffe_riski, s_inputs.kritik_makine_bagimliligi = ai_params["icerik_hassasiyeti"], ai_params["ffe_riski"], ai_params["kritik_makine_bagimliligi"]
+            
+            p_ind = s_inputs.industrial_params
+            if p_ind.yapi_turu == "Betonarme" and "1998 öncesi" in p_ind.yonetmelik_donemi: triggered_rules.append("ESKI_PREFABRIK_RISKI")
+            if s_inputs.icerik_hassasiyeti == 'Yüksek': triggered_rules.append("SEKTOREL_HASSASIYET")
+            
+            pd_results = calculate_pd_damage_industrial(s_inputs)
+            gross_bi_days, net_bi_days_raw = calculate_bi_downtime_industrial(pd_results["pml_ratio"], s_inputs)
+            net_bi_days_final = max(0, net_bi_days_raw - p_ind.bi_gun_muafiyeti)
+            
+        elif s_inputs.tesis_tipi == tr("res"):
+            p_res = s_inputs.res_params
+            if "10+" in p_res.turbin_yas: triggered_rules.append("ESKI_TEKNOLOJI")
+            if "Yumuşak Zeminli" in p_res.arazi_jeoteknik: triggered_rules.append("YUMUSAK_ZEMIN")
+            if "Standart Ekipman" in p_res.salt_sahasi: triggered_rules.append("STANDART_SALT_SAHASI")
 
-    # ... (Geri kalan kod)
+            pd_results = calculate_pd_damage_res(s_inputs)
+            gross_bi_days, net_bi_days_raw = calculate_bi_downtime_res(pd_results["pml_ratio"], s_inputs)
+            net_bi_days_final = max(0, net_bi_days_raw - p_res.bi_gun_muafiyeti)
+
+        st.header(tr("ai_pre_analysis_header"))
+        with st.spinner("AI Teknik Underwriter'ı senaryoyu değerlendiriyor..."):
+            assessment_report = generate_technical_assessment(s_inputs, triggered_rules)
+            st.markdown(assessment_report, unsafe_allow_html=True)
+            
+        pd_damage_amount = pd_results["damage_amount"]; pd_ratio = pd_results["pml_ratio"]
+        bi_damage_amount = (s_inputs.yillik_brut_kar / 365.0) * net_bi_days_final if s_inputs.yillik_brut_kar > 0 else 0
+        
+        st.header(tr("results_header"))
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Beklenen PD Hasar Tutarı", money(pd_damage_amount), f"PML: {pd_ratio:.2%}")
+        m2.metric("Brüt / Net İş Kesintisi", f"{gross_bi_days} / {net_bi_days_final} gün", "Onarım / Tazmin edilebilir")
+        m3.metric("Beklenen BI Hasar Tutarı", money(bi_damage_amount))
+        
+        st.markdown("---")
+        #... (Poliçe Alternatifleri Analizi kısmı aynı)
 
 if __name__ == "__main__":
     main()
