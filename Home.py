@@ -305,4 +305,168 @@ def calculate_pd_damage_industrial(s: SessionInputs) -> Dict[str, float]:
 
 # --- BI Hesaplama -------------------------------------------------------------
 def calculate_bi_downtime_industrial(pd_ratio: float, s: SessionInputs) -> Tuple[int, int, int]:
-    calib = st.sess
+    calib = st.session_state.get("_v63_calib_industrial") or get_ai_calibration_full_industrial(s)
+    b = calib["bi_calibration"]
+    base_repair = 30 + (float(pd_ratio) * 300.0)
+    internal = int(base_repair * float(b["kritik_ekipman_durus_carpani"]))
+    external = int((int(b["altyapi_gecikme_ay"]) + int(b["tedarik_zinciri_gecikme_ay"])) * 30)
+    gross = max(internal, external)
+    buffer_days = int(b.get("buffer_bitmis_urun_stogu_gun", 0) or 0)
+    wait = int(s.industrial_params.bi_gun_muafiyeti or 21)
+    max_days = int(s.azami_tazminat_suresi or 365)
+    net_before_wait = max(0, gross - buffer_days)
+    net_after_wait = min(max_days, max(0, net_before_wait - wait))
+    return int(gross), int(net_after_wait), int(buffer_days)
+
+# --- UI -----------------------------------------------------------------------
+st.set_page_config(page_title="TariffEQ v6.3 – Hibrit Zeka Motoru (Endüstriyel)", layout="wide")
+
+with st.sidebar:
+    st.markdown("### Ayarlar")
+    st.text_input("API Anahtarı (opsiyonel – eğer ortam/secrets yoksa)", type="password", key="_ui_key")
+    st.markdown("---")
+    st.caption("Girdi alanlarını doldurun ve **Analizi Çalıştır** butonuna basın.")
+
+st.title("TariffEQ v6.3 – Endüstriyel Tesis Deprem PD/BI Kalibrasyonu (Gemini)")
+
+colA, colB, colC = st.columns([1,1,1])
+with colA:
+    rg = st.selectbox("Deprem Risk Bölgesi (rg)", [1,2,3,4,5,6,7], index=3)
+    si_pd = st.number_input("Toplam PD Sigorta Bedeli (TL)", min_value=0, step=100_000, value=5_000_000)
+    yillik_brut_kar = st.number_input("Yıllık Brüt Kâr (TL)", min_value=0, step=100_000, value=12_000_000)
+with colB:
+    azami_tazminat_suresi = st.selectbox("Azami Tazminat Süresi (gün)", [365, 540, 730], index=0)
+    bi_wait = st.selectbox("BI Gün Muafiyeti (gün)", [14,21,30,45,60,90,120,180], index=1)
+    zemin_sinifi = st.selectbox("Zemin Sınıfı", ["Bilmiyorum", "ZA","ZB","ZC","ZD","ZE"], index=3)
+with colC:
+    pd_bina_sum = st.number_input("Bina SI (opsiyonel, TL)", min_value=0, step=100_000, value=0)
+    pd_makine_sum = st.number_input("Makine SI (opsiyonel, TL)", min_value=0, step=100_000, value=0)
+    pd_elektronik_sum = st.number_input("Elektronik SI (opsiyonel, TL)", min_value=0, step=50_000, value=0)
+    pd_stok_sum = st.number_input("Stok SI (opsiyonel, TL)", min_value=0, step=50_000, value=0)
+
+faaliyet_tanimi = st.text_area(
+    "Faaliyet Tanımı (proses, kritik ekipman, stoklama, kimyasal/yanıcı vb.)",
+    placeholder="Üretim sürecinizi, kritik ekipman(lar)ı, stoklama yöntemini (yüksek raf vb.) ve özel koşulları (soğuk zincir, ithal hammadde vb.) yazınız.",
+    height=140,
+)
+
+colR1, colR2, colR3 = st.columns(3)
+with colR1:
+    yumusak_kat_riski = st.selectbox("Yumuşak Kat Riski", ["Bilinmiyor", "Evet", "Hayır"], index=0)
+with colR2:
+    YOKE_durumu = st.selectbox("Yapısal Olmayan Elemanların Koruması (YOKE)", ["Bilinmiyor","Koruma Yok","Kısmi","Tam"], index=0)
+with colR3:
+    bitmis_urun_stogu = st.number_input("Bitmiş Ürün Stoku (gün)", min_value=0, max_value=120, value=0)
+
+analyze = st.button("Analizi Çalıştır", type="primary")
+
+def _build_session_from_ui() -> SessionInputs:
+    ip = IndustrialParams(
+        faaliyet_tanimi=faaliyet_tanimi,
+        bi_gun_muafiyeti=int(bi_wait),
+        zemin_sinifi=None if zemin_sinifi=="Bilmiyorum" else zemin_sinifi,
+        yumusak_kat_riski="Evet" if yumusak_kat_riski=="Evet" else ("Hayır" if yumusak_kat_riski=="Hayır" else None),
+        YOKE_durumu=None if YOKE_durumu=="Bilinmiyor" else YOKE_durumu,
+        bitmis_urun_stogu=int(bitmis_urun_stogu),
+        pd_bina_sum=int(pd_bina_sum),
+        pd_makine_sum=int(pd_makine_sum),
+        pd_elektronik_sum=int(pd_elektronik_sum),
+        pd_stok_sum=int(pd_stok_sum),
+    )
+    s = SessionInputs(
+        facility_type="Endüstriyel",
+        rg=int(rg),
+        si_pd=int(si_pd),
+        yillik_brut_kar=int(yillik_brut_kar),
+        azami_tazminat_suresi=int(azami_tazminat_suresi),
+        industrial_params=ip,
+    )
+    st.session_state["s_inputs"] = s  # eski imzaları kullanan fonksiyonlar için
+    return s
+
+def _coinsurance_table(pd_tl: int, bi_net_days: int, daily_gp: float) -> pd.DataFrame:
+    # Basit seçenekler: koasürans (sigortacı toplam ödeme payı) ve PD muafiyet yüzdesi
+    coins = [1.00, 0.90, 0.80, 0.70]
+    pd_deduct_pcts = [0.00, 0.01, 0.02, 0.05]
+    rows = []
+    gross_bi_tl = daily_gp * bi_net_days
+    gross_loss = pd_tl + gross_bi_tl
+    for c in coins:
+        for d in pd_deduct_pcts:
+            pd_ded_tl = pd_tl * d
+            net_pay = max(gross_loss - pd_ded_tl, 0) * c
+            insured_retention = gross_loss - net_pay
+            eff_score = net_pay / max(1, insured_retention) if insured_retention>0 else float("inf")
+            rows.append({
+                "Koasürans (Sigortacı Payı)": c,
+                "PD Muafiyet (%)": d,
+                "PD Muafiyet (TL)": int(pd_ded_tl),
+                "Brüt Kayıp (TL)": int(gross_loss),
+                "Net Ödenecek Tazminat (TL)": int(net_pay),
+                "Sigortalı Katlanacağı Risk (TL)": int(insured_retention),
+                "Verimlilik Skoru": round(eff_score, 3) if eff_score!=float("inf") else 999.0,
+            })
+    df = pd.DataFrame(rows).sort_values(["Verimlilik Skoru","Net Ödenecek Tazminat (TL)"], ascending=[False, False])
+    return df
+
+if analyze:
+    try:
+        s = _build_session_from_ui()
+        calib = get_ai_calibration_full_industrial(s)
+        with st.expander("AI Kalibrasyon JSON (v6.3)"):
+            st.json(calib)
+        pd_res = calculate_pd_damage_industrial(s)
+        pd_tl = pd_res["damage_amount"]
+        pml_ratio = pd_res["pml_ratio"]
+        gross_days, bi_net_days, buffer_days = calculate_bi_downtime_industrial(pml_ratio, s)
+        daily_gp = (s.yillik_brut_kar or 0) / 365.0
+        bi_loss_tl = int(daily_gp * bi_net_days)
+
+        st.subheader("Özet Sonuçlar")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("PD Tahmini (TL)", f"{pd_tl:,.0f}".replace(",", "."))
+        m2.metric("PML Oranı", f"{pml_ratio:.2%}")
+        m3.metric("BI Brüt/Net (gün)", f"{gross_days} / {bi_net_days}")
+        m4.metric("BI Net Kayıp (TL)", f"{bi_loss_tl:,.0f}".replace(",", "."))
+
+        st.markdown("#### Varlık Bazlı PD Kırılımı")
+        det = pd_res["_details"]["pd_breakdown"]
+        df_det = pd.DataFrame([
+            ["Bina", det["bina"], pd_res["_details"]["ratios"]["bina"]],
+            ["Makine", det["makine"], pd_res["_details"]["ratios"]["makine"]],
+            ["Elektronik", det["elektronik"], pd_res["_details"]["ratios"]["elektronik"]],
+            ["Stok", det["stok"], pd_res["_details"]["ratios"]["stok"]],
+        ], columns=["Varlık", "PD (TL)", "Oran"])
+        st.dataframe(df_det, use_container_width=True)
+
+        st.markdown("#### Koasürans & Muafiyet Senaryoları – Net Ödenecek Tazminat")
+        df_opts = _coinsurance_table(pd_tl, bi_net_days, daily_gp)
+        st.dataframe(df_opts, use_container_width=True)
+
+        # Scatter (Matplotlib, tek renk, tek eksen)
+        fig = plt.figure()
+        plt.scatter(df_opts["PD Muafiyet (TL)"], df_opts["Net Ödenecek Tazminat (TL)"])
+        plt.title("Muafiyet (TL) vs Net Ödenecek Tazminat (TL)")
+        plt.xlabel("PD Muafiyet (TL)")
+        plt.ylabel("Net Ödenecek Tazminat (TL)")
+        st.pyplot(fig)
+
+        st.markdown("#### Yorum (Otomatik)")
+        st.write(
+            f"- İçerik hassasiyeti: **{calib.get('icerik_hassasiyeti','Orta')}** | "
+            f"FFE riski: **{calib.get('ffe_riski','Orta')}** | "
+            f"Kritik makine bağımlılığı: **{calib.get('kritik_makine_bagimliligi','Orta')}**"
+        )
+        st.write(
+            f"- BI kalibrasyonu: kritik ekipman çarpanı **{calib['bi_calibration']['kritik_ekipman_durus_carpani']}**, "
+            f"altyapı gecikme **{calib['bi_calibration']['altyapi_gecikme_ay']} ay**, "
+            f"tedarik gecikme **{calib['bi_calibration']['tedarik_zinciri_gecikme_ay']} ay**, "
+            f"stok tamponu **{calib['bi_calibration']['buffer_bitmis_urun_stogu_gun']} gün**."
+        )
+        st.caption("Not: Prim hesaplama bu uygulamaya dahil değildir; mevcut tarifeye entegre edilebilir.")
+
+    except Exception as e:
+        st.error(f"Hata: {e}")
+
+else:
+    st.info("Parametreleri girin ve **Analizi Çalıştır** butonuna basın.")
