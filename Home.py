@@ -1,22 +1,17 @@
 # -*- coding: utf-8 -*-
 #
-# TariffEQ – Hibrit Zekâ Destekli PD & BI Hasar Analiz Aracı (v6.4)
+# TariffEQ – Hibrit Zekâ Destekli PD & BI Hasar Analiz Aracı (v6.4R)
 # =======================================================================
 # Bu Streamlit uygulaması, reasürans ve katastrofik modelleme metodolojilerinden
 # esinlenerek geliştirilmiş parametreler ve tarifeye tam uyumlu hesaplama
 # mantığı ile ticari/sınai rizikolar için profesyonel seviyede bir deprem
 # hasar analizi sunar.
 #
-# GÜNCEL REVİZYON NOTLARI (Eylül 2025 - v6.4 - Şeffaf AI Motoru):
-# 1. Şeffaf Raporlama: AI, atadığı sayısal parametrelerin (hasar oranları, çarpanlar)
-#    gerekçelerini ve dayanak aldığı referansları (örn: TBDY-2018, HAZUS Metodolojisi)
-#    sonuç ekranında açıkça belirtir.
-# 2. Akıllı YOKE Analizi: Kullanıcıdan uzmanlık gerektiren "Yapısal Olmayan Eleman (YOKE)
-#    Koruması" girdisi kaldırıldı. AI artık bu riski, girilen 'faaliyet tanımı'
-#    metnini analiz ederek kendisi tespit etmekte ve çarpan atamaktadır.
-# 3. Gelişmiş Arayüz: Analiz sonuçları, AI'ın varsayımlarını, referanslarını ve
-#    parametrelerini adım adım gösteren yeni bir "AI Kalibrasyon Gerekçeleri"
-#    bölümü ile zenginleştirildi.
+# GÜNCEL REVİZYON (v6.4R — Araştırma Odaklı AI):
+# - AI, faaliyet metninden sektör/ekipman anahtarları çıkarır ve Google Search
+#   Grounding (SDK destekliyse) ile araştırma yapmaya teşvik edilir.
+# - Üretilen kaynak/URL atıfları meta.notes içine enjekte edilir.
+# - Mevcut sayfa yerleşimi ve çıktılar aynen korunmuştur.
 
 import streamlit as st
 import pandas as pd
@@ -26,6 +21,7 @@ from typing import Dict, List, Tuple, Optional
 import json
 import traceback
 import os
+import re
 
 # --- AI İÇİN KORUMALI IMPORT VE GÜVENLİ KONFİGÜRASYON ---
 _GEMINI_AVAILABLE = False
@@ -101,34 +97,52 @@ def get_qualitative_assessment_prompt(s: 'ScenarioInputs', triggered_rules: List
     return "Seçilen tesis tipi için AI değerlendirmesi henüz aktif değil."
 
 
-# YENİ HİBRİT ZEKA PROMPTU (REVİZE EDİLDİ)
+# YENİ HİBRİT ZEKA PROMPTU (ARAŞTIRMA ODAKLI)
 AI_ANALYST_SYSTEM_PROMPT = r"""
-SİSTEM MESAJI — TariffEQ v6.4 • Şeffaf AI ANALİST (Deprem Hasar Kalibrasyonu)
-AMAÇ VE SINIRLAR
-- Görevin: Kullanıcı girdileri ve serbest metin açıklamasından (faaliyet_tanimi) hareketle deprem kaynaklı PD ve BI hasar kalibrasyon parametrelerini üretmek.
-- Çıktın tek parça JSON (aşağıdaki şemaya birebir uy). JSON dışında tek karakter bile yazma.
-- Deterministik çalış: temperature ≤ 0.2.
-- Türkiye önceliği: TBDY-2018, HAZUS metodolojisi, yerel zemin ve yapısal-olmayan (YOKE) pratikleriyle uyumlu değerlendirme yap.
+SİSTEM — TariffEQ v6.4R • Şeffaf AI ANALİST (Deprem Hasar Kalibrasyonu + Araştırma)
+AMAÇ ve ÇIKTI
+- Girdi: Kullanıcı formu + faaliyet_tanımı.
+- Görev: Deprem kaynaklı PD/BI kalibrasyon parametrelerini üret.
+- Çıktı: AŞAĞIDAKİ JSON ŞEMASINA %100 UYAN TEK PARÇA JSON. JSON dışında tek karakter yazma.
+- Deterministik: temperature ≤ 0.2
+- Türkiye önceliği: TBDY-2018, AFAD/MTA/İMO, belediye mikrobölgeleme. BI için son 24 ayda tedarik zinciri/altyapı raporları.
 
-YENİ GÖREVLER (v6.4)
-1.  Şeffaflık ve Kaynak Gösterme: Yaptığın her sayısal atama için (özellikle çarpanlar ve BI süreleri), gerekçeni ve dayanak aldığın kaynağı 'meta.notes' alanına yazmalısın. Format: "Kanıt: [Bulgu Özeti] - Kaynak: [Yayıncı/Kurum Adı] - Tarih: [Yayın Tarihi]". Genel kabul görmüş standartları (TBDY-2018, HAZUS, FEMA P-58) öncelikli kullan.
-2.  YOKE (Yapısal Olmayan Eleman) Riski Çıkarımı: Kullanıcı artık YOKE durumu girmeyecek. Senin görevin, `faaliyet_tanimi` metnini analiz ederek bu riski tahmin etmektir. 'yüksek raf', 'askılı sistem', 'hassas cihaz', 'boru hattı', 'tank' gibi ifadeler riski artırır. Bu analize dayanarak `pd_factor_suggestion.yoke_carpani` değerini [1.00, 1.60] aralığında ata. Bu çıkarımının nedenini `meta.assumptions` listesine açıkça yaz.
+ARAŞTIRMA KURALLARI
+- Eğer “google_search” aracı mevcutsa KULLAN. Her sayısal atamayı mümkünse bir URL ile gerekçelendir.
+- Kaynak önceliği: (1) TR resmi/akademik (AFAD, MTA, İMO, belediye), (2) uluslararası kamu/akademik (USGS, EERI, JRC, WB/OECD), (3) üretici/sanayi bültenleri (trafo, inverter, kompresör vb.), (4) güvenilir ticari/analist raporlar.
+- Tazelik: PD/zemin 2018+; BI lead time son 24 ay. Daha eski ise meta.confidence düşür, meta.notes’a uyarı yaz.
+- Sorgu şablonları (örnek):
+  • site:gov.tr (AFAD OR MTA) "{il} {ilçe} deprem tehlike haritası" "PGA" OR "spektral ivme"
+  • "{sektör_anahtarları}" "critical spare" lead time 2024..2025
+  • "{ekipman_anahtarları}" rebuild time OR downtime study 2024..2025
+  • "{il} liman altyapı deprem hasarı"  • "TBDY 2018 spektral ivme"
+- Araç yoksa: Heuristik yap ama her varsayımı meta.assumptions[]’a yaz; meta.confidence_0to1 ile belirsizlik belirt.
 
-BEKLENEN GİRDİLER
-- Ortak: facility_type, rg, si_pd_total_TL, annual_gross_profit_TL, max_indemnity_days, bi_wait_days
-- Yapısal/çevresel: yapi_turu, yonetmelik_donemi, kat_sayisi, zemin_sinifi, yakin_cevre, yumusak_kat_riski
-- Operasyonel: ISP, alternatif_tesis, bitmis_urun_stogu_gun
-- Serbest metin: faaliyet_tanimi (en önemli girdi)
-
-KALİBRASYON KURALLARI VE SINIRLAR
+KALİBRASYON KURALLARI
 - pd_base_loss_ratio.* ∈ [0.01, 0.60]
 - pd_factor_suggestion.zemin_carpani ∈ [0.85, 1.50]
 - pd_factor_suggestion.yoke_carpani ∈ [1.00, 1.60]
+- pd_factor_suggestion.ffeq_potansiyel_carpani ∈ [1.00, 2.00]
+- pd_factor_suggestion.stok_devrilme_carpani ∈ [1.00, 2.50]
+- bi_calibration.kritik_ekipman_durus_carpani ∈ [1.00, 3.00]
 - bi_calibration.altyapi_gecikme_ay ∈ [0, 3]
 - bi_calibration.tedarik_zinciri_gecikme_ay ∈ [0, 12]
-- Sınır dışı değerleri kırp (clamp) ve gerekçeyi meta.notes’a yaz.
+- bi_calibration.buffer_bitmis_urun_stogu_gun ∈ [0, 120]
+- ENUM: Düşük|Orta|Yüksek
 
-ÇIKTI — ZORUNLU JSON ŞEMASI
+METİNDEN TETİKLEYİCİLER (örnek)
+- “yüksek raf/askılı sistem/tank/boru hattı/hassas cihaz” → yoke_carpani ≥ 1.20 (gerekçeyi meta.assumptions’a yaz)
+- zemin “ZD/ZE” veya “nehir yatağı/kıyı/dolgu” → zemin_carpani ≥ 1.20
+- “1998 öncesi” → pd_base_loss_ratio.bina +%15 (gerekçeyle)
+- GES “merkezi inverter” → kritik_ekipman_durus_carpani ≥ 1.30
+
+KAYNAK GÖSTERME
+- Her önemli parametre ataması için meta.notes’a satır ekle:
+  "Kanıt: [bulgu özeti] — Kaynak: [yayıncı/ad] — Tarih: [yyyy] — URL: [https://...]"
+- Aracı kullandıysan, verilen atıfları da meta.notes’a ekle (kısa başlık + URL).
+- meta.confidence_0to1 alanını 0.0–1.0 arası ata.
+
+JSON ŞEMASI (AYNEN)
 {
   "icerik_hassasiyeti": "Düşük|Orta|Yüksek",
   "kritik_makine_bagimliligi": "Düşük|Orta|Yüksek",
@@ -138,10 +152,10 @@ KALİBRASYON KURALLARI VE SINIRLAR
   "bi_calibration": {"kritik_ekipman_durus_carpani": 1.00, "altyapi_gecikme_ay": 0, "tedarik_zinciri_gecikme_ay": 0, "buffer_bitmis_urun_stogu_gun": 0},
   "risk_flags": ["YUMUSAK_KAT_RISKI","SIVILASMA_RISKI","ESKI_TASARIM_KODU"],
   "meta": {
-      "confidence_0to1": 0.00, 
-      "assumptions": ["Yapılan varsayımları listele. Özellikle faaliyet tanımından YOKE riski çıkarımını buraya yaz."], 
-      "notes": "Sayısal parametrelerin dayanaklarını listele. Format: 'Kanıt: [Bulgu Özeti] - Kaynak: [Yayıncı/Kurum Adı] - Tarih: [Yayın Tarihi]'."
-      }
+      "confidence_0to1": 0.00,
+      "assumptions": [],
+      "notes": ""
+  }
 }
 """
 
@@ -350,33 +364,204 @@ def calculate_net_claim(si_pd: int, hasar_tutari: float, koas: str, muaf_pct: fl
     muafiyet_tutari = si_pd * (muaf_pct / 100.0); muafiyet_sonrasi_hasar = max(0.0, hasar_tutari - muafiyet_tutari); sirket_pay_orani = float(koas.split('/')[0]) / 100.0; net_tazminat = muafiyet_sonrasi_hasar * sirket_pay_orani; sigortalida_kalan = hasar_tutari - net_tazminat; return {"net_tazminat": net_tazminat, "sigortalida_kalan": sigortalida_kalan}
 
 
-# --- AI FONKSİYONLARI (REVİZE EDİLDİ) ---
+# --- ARAŞTIRMA YARDIMCILARI (sektör/ekipman çıkarımı + sorgu üretimi) ---
+def _extract_sector_terms(text: str) -> Dict[str, List[str]]:
+    text_l = (text or "").lower()
+    sektor_terms = []
+    if any(w in text_l for w in ["otomotiv", "pres", "şasi", "sac", "kalıp"]):
+        sektor_terms.append("automotive stamping / metal forming")
+    if any(w in text_l for w in ["gıda", "içecek", "şişeleme", "dolum"]):
+        sektor_terms.append("food & beverage bottling")
+    if any(w in text_l for w in ["cam fırını", "fırın", "ergitme"]):
+        sektor_terms.append("glass furnace")
+    if any(w in text_l for w in ["yarı iletken", "wafer", "cleanroom", "fotolitografi"]):
+        sektor_terms.append("semiconductor manufacturing")
+    if any(w in text_l for w in ["kimya", "reaktör", "tank", "solvent"]):
+        sektor_terms.append("chemical processing")
+
+    ekipman_terms = []
+    if any(w in text_l for w in ["pres", "hidrolik pres"]):
+        ekipman_terms.append("hydraulic press")
+    if "cnc" in text_l:
+        ekipman_terms.append("CNC machine")
+    if any(w in text_l for w in ["kompresör", "compressor"]):
+        ekipman_terms.append("compressor")
+    if any(w in text_l for w in ["inverter", "trafo", "transformatör", "şalt", "switchgear"]):
+        ekipman_terms += ["inverter", "transformer", "switchgear"]
+    if any(w in text_l for w in ["yüksek raf", "raf sistemi", "askılı", "asma tavan"]):
+        ekipman_terms.append("high-bay rack / suspended systems")
+    if any(w in text_l for w in ["tank", "boru", "hat", "pipeline"]):
+        ekipman_terms.append("tanks & process piping")
+
+    return {"sektor": sorted(set(sektor_terms)), "ekipman": sorted(set(ekipman_terms))}
+
+def _build_research_queries(payload: dict, sektor_keys: List[str], ekipman_keys: List[str]) -> Dict[str, List[str]]:
+    il = payload.get("yakin_cevre", "")
+    rg = payload.get("rg", "")
+    zemin = payload.get("zemin_sinifi", "")
+
+    q_pd = [
+        f'site:gov.tr (AFAD OR MTA) "deprem tehlike haritası" "{il}" "PGA" OR "spektral ivme"',
+        f'"Türkiye Bina Deprem Yönetmeliği 2018" "spektral ivme" "rg {rg}"',
+        f'"mikrobölgeleme" "{il}" "{zemin}" "sıvılaşma"'
+    ]
+    q_yoke = [
+        'endüstriyel tesis "yapısal olmayan eleman" sismik koruma raf devrilmesi',
+        'nonstructural seismic restraints industrial racks piping tanks'
+    ]
+    q_bi = []
+    if sektor_keys:
+        q_bi.append(f'{" ,".join(sektor_keys)} "critical spare" lead time 2024..2025')
+    if ekipman_keys:
+        q_bi.append(f'{" ,".join(ekipman_keys)} rebuild time OR downtime study 2024..2025')
+    q_bi += [
+        'transformer lead time 2024..2025 MV LV',
+        f'"{il}" liman altyapı deprem hasarı raporu',
+        f'"{il}" enerji iletim hatları deprem etkisi'
+    ]
+    return {"pd_queries": q_pd, "yoke_queries": q_yoke, "bi_queries": q_bi}
+
+
+# --- AI FONKSİYONLARI (REVİZE EDİLDİ — Araştırma destekli) ---
 @st.cache_data(show_spinner=False)
 def get_ai_calibration_industrial(s: ScenarioInputs) -> Dict:
-    if not _GEMINI_AVAILABLE: return {}
+    if not _GEMINI_AVAILABLE:
+        return {}
     p = s.industrial_params
     payload = {
         "facility_type": "Endüstriyel", "rg": int(s.rg), "si_pd_total_TL": int(s.si_pd),
         "annual_gross_profit_TL": int(s.yillik_brut_kar), "max_indemnity_days": int(s.azami_tazminat_suresi),
         "bi_wait_days": int(p.bi_gun_muafiyeti), "yapi_turu": p.yapi_turu, "yonetmelik_donemi": p.yonetmelik_donemi,
         "kat_sayisi": p.kat_sayisi, "zemin_sinifi": p.zemin_sinifi, "yakin_cevre": p.yakin_cevre,
-        "yumusak_kat_riski": p.yumusak_kat_riski, # YOKE girdisi kaldırıldı
+        "yumusak_kat_riski": p.yumusak_kat_riski,  # YOKE girdisi kaldırıldı
         "ISP": p.isp_varligi, "alternatif_tesis": p.alternatif_tesis,
         "bitmis_urun_stogu_gun": int(p.bitmis_urun_stogu or 0), "faaliyet_tanimi": p.faaliyet_tanimi or "",
     }
+
+    keys = _extract_sector_terms(payload["faaliyet_tanimi"])
+    queries = _build_research_queries(payload, keys["sektor"], keys["ekipman"])
+
+    # Araç tanımı (SDK sürümüne göre esnek)
+    tools_arg = None
     try:
-        model = genai.GenerativeModel(model_name="gemini-1.5-flash", system_instruction=AI_ANALYST_SYSTEM_PROMPT)
-        generation_config = {"temperature": 0.1, "top_p": 0.8, "response_mime_type": "application/json"}
-        prompt_user = "KULLANICI GİRDİLERİ (JSON):\n" + json.dumps(payload, ensure_ascii=False)
-        response = model.generate_content(prompt_user, generation_config=generation_config)
-        calib = json.loads(response.text)
-        # Gelen yanıtta basit bir doğrulama ve clamping
-        for key in calib.get("pd_base_loss_ratio_suggestion", {}): calib["pd_base_loss_ratio_suggestion"][key] = _clamp(calib["pd_base_loss_ratio_suggestion"][key], 0.01, 0.60)
-        for key in calib.get("pd_factor_suggestion", {}): calib["pd_factor_suggestion"][key] = _clamp(calib["pd_factor_suggestion"][key], 0.80, 2.50)
-        return calib
+        tools_arg = [{"google_search": {}}]  # Geniş uyumluluk için sözlük formatı
+    except Exception:
+        tools_arg = None
+
+    # Pro: grounding için pro kullan, flash da olur; response JSON istiyoruz
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-pro",
+            system_instruction=AI_ANALYST_SYSTEM_PROMPT,
+            tools=tools_arg
+        )
+    except TypeError:
+        # Bazı sürümlerde tools burada kabul edilmeyebilir
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-pro",
+            system_instruction=AI_ANALYST_SYSTEM_PROMPT
+        )
+
+    generation_config = {"temperature": 0.1, "top_p": 0.8, "response_mime_type": "application/json"}
+    user_block = "ARAŞTIRMA SORGULARI (rehber, aracı varsa kullan):\n" + json.dumps(queries, ensure_ascii=False, indent=2) + \
+                 "\n\nKULLANICI GİRDİLERİ (JSON):\n" + json.dumps(payload, ensure_ascii=False)
+
+    try:
+        # Bazı SDK sürümlerinde tools parametresi generate_content içinde verilmeli olabilir
+        try:
+            response = model.generate_content(user_block, generation_config=generation_config)
+        except TypeError:
+            response = model.generate_content(user_block, generation_config=generation_config, tools=tools_arg)
     except Exception as e:
-        st.session_state.errors.append(f"AI Parametre Hatası: {str(e)}\n{traceback.format_exc()}")
+        st.session_state.errors.append(f"AI Parametre Hatası (çağrı): {str(e)}\n{traceback.format_exc()}")
         return {}
+
+    if not response or not getattr(response, "text", None):
+        st.session_state.errors.append("AI Parametre Hatası: Yanıt boş veya beklenmedik.")
+        return {}
+
+    try:
+        calib = json.loads(response.text)
+    except Exception as e:
+        st.session_state.errors.append(f"AI JSON ayrıştırma hatası: {str(e)}\nYanıt: {response.text[:500]}")
+        return {}
+
+    # Gelen yanıtta doğrulama ve clamping
+    def _enumfix(v: str) -> str:
+        return v if v in ("Düşük", "Orta", "Yüksek") else "Orta"
+
+    r = calib.get("pd_base_loss_ratio_suggestion", {}) or {}
+    f = calib.get("pd_factor_suggestion", {}) or {}
+    b = calib.get("bi_calibration", {}) or {}
+    calib["icerik_hassasiyeti"] = _enumfix(calib.get("icerik_hassasiyeti", "Orta"))
+    calib["ffe_riski"] = _enumfix(calib.get("ffe_riski", "Orta"))
+    calib["kritik_makine_bagimliligi"] = _enumfix(calib.get("kritik_makine_bagimliligi", "Orta"))
+
+    for key in ("bina", "makine", "elektronik", "stok"):
+        try:
+            r[key] = round(_clamp(float(r.get(key, 0.12)), 0.01, 0.60), 2)
+        except Exception:
+            r[key] = 0.12
+
+    f["zemin_carpani"] = round(_clamp(float(f.get("zemin_carpani", 1.00)), 0.85, 1.50), 2)
+    f["yoke_carpani"] = round(_clamp(float(f.get("yoke_carpani", 1.00)), 1.00, 1.60), 2)
+    f["ffeq_potansiyel_carpani"] = round(_clamp(float(f.get("ffeq_potansiyel_carpani", 1.00)), 1.00, 2.00), 2)
+    f["stok_devrilme_carpani"] = round(_clamp(float(f.get("stok_devrilme_carpani", 1.00)), 1.00, 2.50), 2)
+
+    b["kritik_ekipman_durus_carpani"] = round(_clamp(float(b.get("kritik_ekipman_durus_carpani", 1.20)), 1.00, 3.00), 2)
+    try:
+        b["altyapi_gecikme_ay"] = int(_clamp(int(b.get("altyapi_gecikme_ay", 0)), 0, 3))
+    except Exception:
+        b["altyapi_gecikme_ay"] = 0
+    try:
+        b["tedarik_zinciri_gecikme_ay"] = int(_clamp(int(b.get("tedarik_zinciri_gecikme_ay", 1)), 0, 12))
+    except Exception:
+        b["tedarik_zinciri_gecikme_ay"] = 1
+    try:
+        b["buffer_bitmis_urun_stogu_gun"] = int(_clamp(int(b.get("buffer_bitmis_urun_stogu_gun", 0)), 0, 120))
+    except Exception:
+        b["buffer_bitmis_urun_stogu_gun"] = 0
+
+    calib["pd_base_loss_ratio_suggestion"] = r
+    calib["pd_factor_suggestion"] = f
+    calib["bi_calibration"] = b
+
+    # Grounding/atf verilerini meta.notes'a ekleme (SDK sürümlerine dayanıklı)
+    notes_extra = []
+    try:
+        cm = getattr(response.candidates[0], "citation_metadata", None)
+        if cm and getattr(cm, "citation_sources", None):
+            for c in cm.citation_sources:
+                title = getattr(c, "title", "") or ""
+                uri = getattr(c, "uri", "") or ""
+                if uri:
+                    notes_extra.append(f"Kanıt: (grounded) — Kaynak: {title} — Tarih: — URL: {uri}")
+    except Exception:
+        pass
+    try:
+        gm = getattr(response.candidates[0], "grounding_metadata", None)
+        if gm and getattr(gm, "grounding_chunks", None):
+            for ch in gm.grounding_chunks:
+                web = getattr(ch, "web", None)
+                if web and getattr(web, "uri", None):
+                    title = getattr(web, "title", "") or ""
+                    notes_extra.append(f"Kanıt: (grounded) — Kaynak: {title} — Tarih: — URL: {web.uri}")
+    except Exception:
+        pass
+
+    meta = calib.get("meta", {}) or {}
+    meta_notes = (meta.get("notes") or "").strip()
+    if notes_extra:
+        meta_notes = (meta_notes + ("\n" if meta_notes else "")) + "\n".join(sorted(set(notes_extra)))
+    meta["notes"] = meta_notes
+    if "assumptions" not in meta:
+        meta["assumptions"] = []
+    if "confidence_0to1" not in meta:
+        meta["confidence_0to1"] = 0.6
+    calib["meta"] = meta
+
+    st.session_state.ai_calibration_results = calib
+    return calib
 
 @st.cache_data(show_spinner=False)
 def generate_technical_assessment(s: ScenarioInputs, triggered_rules: List[str]) -> str:
@@ -385,9 +570,13 @@ def generate_technical_assessment(s: ScenarioInputs, triggered_rules: List[str])
     prompt = get_qualitative_assessment_prompt(s, triggered_rules)
     if not prompt: return "Seçilen tesis tipi için AI değerlendirmesi henüz aktif değil."
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash'); response = model.generate_content(prompt, generation_config={"temperature": 0.2}); return response.text
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt, generation_config={"temperature": 0.2})
+        return response.text
     except Exception as e:
-        st.session_state.errors.append(f"AI Rapor Hatası: {str(e)}\n{traceback.format_exc()}"); return "AI Teknik Değerlendirme raporu oluşturulamadı."
+        st.session_state.errors.append(f"AI Rapor Hatası: {str(e)}\n{traceback.format_exc()}")
+        return "AI Teknik Değerlendirme raporu oluşturulamadı."
+
 
 # --- STREAMLIT UYGULAMASI (REVİZE EDİLDİ) ---
 def main():
@@ -522,7 +711,7 @@ def main():
                 df_det["Hasar Oranı"] = [f"{v:.2%}" for v in details["ratios"].values()]
                 st.dataframe(df_det.style.format({"PD Hasarı (₺)": money}), use_container_width=True)
 
-            # --- YENİ EKLENEN ŞEFFAFLIK BÖLÜMÜ ---
+            # --- ŞEFFAFLIK BÖLÜMÜ ---
             if s_inputs.tesis_tipi == tr("endustriyel_tesis") and st.session_state.ai_calibration_results:
                 st.markdown("---")
                 st.subheader("🧠 AI Kalibrasyon Gerekçeleri ve Parametreler")
@@ -551,7 +740,7 @@ def main():
                     st.table(df_params.style.format({"Değer": "{:.2f}"}))
                 else:
                     st.warning("Sayısal parametreler AI tarafından üretilemedi.")
-            # --- YENİ BÖLÜM SONU ---
+            # --- ŞEFFAFLIK BÖLÜMÜ SONU ---
             
             st.markdown("---")
             st.header(tr("analysis_header"))
