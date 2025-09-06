@@ -3,20 +3,20 @@
 """
 TariffEQ v6.3 – Hibrit Zekâ Motoru (Endüstriyel) • Tek Dosya Çalışan Uygulama
 Koşullar:
-- Python 3.9+ (3.10 da olur)
+- Python 3.9+ (3.12 uyumlu)
 - pip install streamlit google-generativeai pandas
 
 Çalıştırma:
   streamlit run app.py
 
 API Anahtarı:
-- Aşağıdakilerden biri olmalı: st.secrets["GEMINI_API_KEY"] veya ortam değişkeni GEMINI_API_KEY/GOOGLE_API_KEY
-- İsterseniz sol kenar çubuktan da (geçici) girebilirsiniz.
+- st.secrets["GEMINI_API_KEY"] veya ortam değişkeni GEMINI_API_KEY/GOOGLE_API_KEY
+- Gerekirse sol kenar çubuktan geçici olarak girebilirsiniz.
 """
 
 from __future__ import annotations
 import os, json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Tuple, Optional
 
 import streamlit as st
@@ -178,7 +178,7 @@ class SessionInputs:
     si_pd: int = 0
     yillik_brut_kar: int = 0
     azami_tazminat_suresi: int = 365
-    industrial_params: IndustrialParams = IndustrialParams()
+    industrial_params: IndustrialParams = field(default_factory=IndustrialParams)  # <-- düzeltme
 
 # --- AI Çağrısı ---------------------------------------------------------------
 def _build_user_payload_from_session(s: SessionInputs) -> Dict:
