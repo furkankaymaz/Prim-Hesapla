@@ -1,57 +1,50 @@
+# app.py
 # -*- coding: utf-8 -*-
 """
-TariffEQ v6.3 – Hibrit Zeka Motoru Entegrasyonu (AI Analist + PD/BI Kalibrasyonu)
-Bu dosya, mevcut "Kod -11 - RES GES HES.txt" için doğrudan KOPYALA-YAPIŞTIR revizyondur.
-- Gemini API ZORUNLU (fallback yok).
-- Prim/koasürans/muafiyet modüllerine dokunmaz.
-- Aşağıdaki fonksiyonların imzaları korunur:
-    - get_ai_driven_parameters_industrial(faaliyet_tanimi)  -> Dict[str, str]
-    - calculate_pd_damage_industrial(s)                     -> Dict[str, float]
-    - calculate_bi_downtime_industrial(pd_ratio, s)         -> Tuple[int, int]
+TariffEQ v6.3 – Hibrit Zekâ Motoru (Endüstriyel) • Tek Dosya Çalışan Uygulama
+Koşullar:
+- Python 3.10+
+- pip install streamlit google-generativeai pandas matplotlib
+
+Çalıştırma:
+  streamlit run app.py
+
+API Anahtarı:
+- Aşağıdakilerden biri olmalı: st.secrets["GEMINI_API_KEY"] veya ortam değişkeni GEMINI_API_KEY/GOOGLE_API_KEY
+- İsterseniz sol kenar çubuktan da (güvenli değilse) geçici olarak girebilirsiniz.
 """
 
-# ====== Bağımlılıklar =========================================================
-import os
-import json
-import re
+from __future__ import annotations
+import os, json
+from types import SimpleNamespace
+from dataclasses import dataclass
 from typing import Dict, Tuple
 
-try:
-    import streamlit as st  # UI state için
-except Exception:
-    class _DummyST:
-        session_state = {}
-    st = _DummyST()  # type: ignore
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
 
+# --- Gemini -------------------------------------------------------------------
 try:
     import google.generativeai as genai
 except Exception as e:
-    raise ImportError(
-        "google-generativeai paketi gerekli. Kurulum: pip install google-generativeai"
-    ) from e
+    st.stop()  # Kullanıcıya net bir hata verelim
+    raise
 
-
-# ====== Gemini yapılandırma ====================================================
-def _get_gemini_api_key() -> str:
-    # Öncelik: st.secrets → GEMINI_API_KEY → GOOGLE_API_KEY
+def _get_gemini_api_key() -> str | None:
     key = None
     try:
         key = st.secrets.get("GEMINI_API_KEY")  # type: ignore[attr-defined]
     except Exception:
         pass
     key = key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    # İsteğe bağlı: UI üzerinden geçici giriş
     if not key:
-        raise RuntimeError(
-            "Gemini API anahtarı bulunamadı. Lütfen st.secrets['GEMINI_API_KEY'] "
-            "veya ortam değişkeni (GEMINI_API_KEY/GOOGLE_API_KEY) olarak tanımlayın."
-        )
+        ui_key = st.session_state.get("_ui_key")
+        if ui_key:
+            key = ui_key
     return key
 
-
-genai.configure(api_key=_get_gemini_api_key())
-
-
-# ====== v6.3 Tek Parça Sistem Mesajı (AI Analist) – Araştırma Dahil ===========
 AI_ANALYST_SYSTEM_PROMPT = r"""
 SİSTEM MESAJI — TariffEQ v6.3 • AI ANALİST (Deprem Kaynaklı Hasar Kalibrasyonu + Araştırma) — TEK PARÇA
 (Doğrudan koda yapıştır; başka prompta atıf yok)
@@ -156,8 +149,7 @@ D) ÜRETİM DİSİPLİNİ
 }
 """
 
-
-# ====== Yardımcılar ===========================================================
+# --- Yardımcılar --------------------------------------------------------------
 _DEF_ENUM = ["Düşük", "Orta", "Yüksek"]
 _DEF_SPLIT_INDUSTRIAL = {"bina": 0.40, "makine": 0.40, "elektronik": 0.06, "stok": 0.14}
 
@@ -167,11 +159,150 @@ def _clamp(x: float, lo: float, hi: float) -> float:
 def _enum(v: str) -> str:
     return v if v in _DEF_ENUM else "Orta"
 
-def _safe_get(obj, name, default=None):
+# --- Basit veri modelleri -----------------------------------------------------
+@dataclass
+class IndustrialParams:
+    faaliyet_tanimi: str = ""
+    bi_gun_muafiyeti: int = 21
+    zemin_sinifi: str | None = None
+    yapi_turu: str | None = None
+    yonetmelik_donemi: str | None = None
+    kat_sayisi: int | None = None
+    yakin_cevre: str | None = None
+    yumusak_kat_riski: str | None = None
+    YOKE_durumu: str | None = None
+    isp_varligi: str | None = None
+    alternatif_tesis: str | None = None
+    bitmis_urun_stogu: int | None = 0
+    # Granüler SI (opsiyonel)
+    pd_bina_sum: int | None = 0
+    pd_makine_sum: int | None = 0
+    pd_elektronik_sum: int | None = 0
+    pd_stok_sum: int | None = 0
+
+@dataclass
+class SessionInputs:
+    facility_type: str = "Endüstriyel"
+    rg: int = 4
+    si_pd: int = 0
+    yillik_brut_kar: int = 0
+    azami_tazminat_suresi: int = 365
+    industrial_params: IndustrialParams = IndustrialParams()
+
+# --- AI Çağrısı ---------------------------------------------------------------
+def _build_user_payload_from_session(s: SessionInputs) -> Dict:
+    p = s.industrial_params
+    return {
+        "facility_type": s.facility_type,
+        "rg": int(s.rg),
+        "si_pd_total_TL": int(s.si_pd),
+        "annual_gross_profit_TL": int(s.yillik_brut_kar),
+        "max_indemnity_days": int(s.azami_tazminat_suresi),
+        "bi_wait_days": int(p.bi_gun_muafiyeti),
+        "yapi_turu": p.yapi_turu,
+        "yonetmelik_donemi": p.yonetmelik_donemi,
+        "kat_sayisi": p.kat_sayisi,
+        "zemin_sinifi": p.zemin_sinifi,
+        "yakin_cevre": p.yakin_cevre,
+        "yumusak_kat_riski": p.yumusak_kat_riski,
+        "YOKE_durumu": p.YOKE_durumu,
+        "ISP": p.isp_varligi,
+        "alternatif_tesis": p.alternatif_tesis,
+        "bitmis_urun_stogu_gun": int(p.bitmis_urun_stogu or 0),
+        "faaliyet_tanimi": p.faaliyet_tanimi or "",
+    }
+
+def get_ai_calibration_full_industrial(s: SessionInputs) -> Dict:
+    key = _get_gemini_api_key()
+    if not key:
+        raise RuntimeError("Gemini API anahtarı bulunamadı. Soldaki 'API Anahtarı' alanına girin veya ortam/secrets ayarlayın.")
+    genai.configure(api_key=key)
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        system_instruction=AI_ANALYST_SYSTEM_PROMPT,
+    )
+    generation_config = {"temperature": 0.1, "top_p": 0.8, "response_mime_type": "application/json"}
+    payload = _build_user_payload_from_session(s)
+    prompt_user = "KULLANICI GİRDİLERİ (JSON):\n" + json.dumps(payload, ensure_ascii=False)
+    resp = model.generate_content(prompt_user, generation_config=generation_config)
+    if not resp or not getattr(resp, "text", None):
+        raise ValueError("Gemini yanıtı boş veya beklenmedik.")
     try:
-        return getattr(obj, name, default)
-    except Exception:
-        return default
+        calib = json.loads(resp.text)
+    except Exception as e:
+        raise ValueError(f"Gemini JSON ayrıştırılamadı: {e}\nYanıt: {resp.text[:500]}")
+    # Şema ve bant kısıtları
+    r = calib.get("pd_base_loss_ratio_suggestion", {}) or {}
+    f = calib.get("pd_factor_suggestion", {}) or {}
+    b = calib.get("bi_calibration", {}) or {}
+    calib["icerik_hassasiyeti"] = _enum(calib.get("icerik_hassasiyeti", "Orta"))
+    calib["ffe_riski"] = _enum(calib.get("ffe_riski", "Orta"))
+    calib["kritik_makine_bagimliligi"] = _enum(calib.get("kritik_makine_bagimliligi", "Orta"))
+    def _rz(v, lo=0.01, hi=0.60): return round(_clamp(float(v), lo, hi), 2)
+    for k in ("bina","makine","elektronik","stok"):
+        r[k] = _rz(r.get(k, 0.12))
+    f["zemin_carpani"] = round(_clamp(float(f.get("zemin_carpani", 1.00)), 0.85, 1.50), 2)
+    f["yoke_carpani"] = round(_clamp(float(f.get("yoke_carpani", 1.00)), 1.00, 1.60), 2)
+    f["ffeq_potansiyel_carpani"] = round(_clamp(float(f.get("ffeq_potansiyel_carpani", 1.00)), 1.00, 2.00), 2)
+    f["stok_devrilme_carpani"] = round(_clamp(float(f.get("stok_devrilme_carpani", 1.00)), 1.00, 2.50), 2)
+    b["kritik_ekipman_durus_carpani"] = round(_clamp(float(b.get("kritik_ekipman_durus_carpani", 1.20)), 1.00, 3.00), 2)
+    b["altyapi_gecikme_ay"] = int(_clamp(int(b.get("altyapi_gecikme_ay", 0)), 0, 3))
+    b["tedarik_zinciri_gecikme_ay"] = int(_clamp(int(b.get("tedarik_zinciri_gecikme_ay", 1)), 0, 12))
+    b["buffer_bitmis_urun_stogu_gun"] = int(_clamp(int(b.get("buffer_bitmis_urun_stogu_gun", 0)), 0, 120))
+    calib["pd_base_loss_ratio_suggestion"] = r
+    calib["pd_factor_suggestion"] = f
+    calib["bi_calibration"] = b
+    st.session_state["_v63_calib_industrial"] = calib
+    st.session_state["_v63_payload"] = payload
+    return calib
 
+# --- PD Hesaplama -------------------------------------------------------------
+def calculate_pd_damage_industrial(s: SessionInputs) -> Dict[str, float]:
+    calib = st.session_state.get("_v63_calib_industrial") or get_ai_calibration_full_industrial(s)
+    r = calib["pd_base_loss_ratio_suggestion"]
+    f = calib["pd_factor_suggestion"]
+    si_total = int(s.si_pd or 0)
+    if si_total <= 0:
+        return {"damage_amount": 0, "pml_ratio": 0.0, "_details": {"ratios": {}, "pd_breakdown": {}}}
+    p = s.industrial_params
+    si_bina = int(p.pd_bina_sum or 0)
+    si_makine = int(p.pd_makine_sum or 0)
+    si_elektronik = int(p.pd_elektronik_sum or 0)
+    si_stok = int(p.pd_stok_sum or 0)
+    if (si_bina + si_makine + si_elektronik + si_stok) > 0:
+        si = {"bina": si_bina, "makine": si_makine, "elektronik": si_elektronik, "stok": si_stok}
+    else:
+        splits = _DEF_SPLIT_INDUSTRIAL
+        si = {k: int(si_total * v) for k, v in splits.items()}
+    bina_ratio = _clamp(r["bina"] * f["zemin_carpani"] * f["yoke_carpani"], 0.01, 0.60)
+    makine_ratio = _clamp(r["makine"] * f["zemin_carpani"] * f["yoke_carpani"] * f["ffeq_potansiyel_carpani"], 0.01, 0.60)
+    elektronik_ratio = _clamp(r["elektronik"] * f["zemin_carpani"] * f["yoke_carpani"] * f["ffeq_potansiyel_carpani"], 0.01, 0.60)
+    stok_ratio = _clamp(r["stok"] * f["zemin_carpani"] * f["yoke_carpani"] * f["stok_devrilme_carpani"], 0.01, 0.60)
+    pd_bina = si["bina"] * bina_ratio
+    pd_makine = si["makine"] * makine_ratio
+    pd_elektronik = si["elektronik"] * elektronik_ratio
+    pd_stok = si["stok"] * stok_ratio
+    total = pd_bina + pd_makine + pd_elektronik + pd_stok
+    pml_ratio = _clamp(total / max(1, sum(si.values())), 0.00, 0.80)
+    return {
+        "damage_amount": int(total),
+        "pml_ratio": float(round(pml_ratio, 3)),
+        "_details": {
+            "ratios": {
+                "bina": round(bina_ratio, 2),
+                "makine": round(makine_ratio, 2),
+                "elektronik": round(elektronik_ratio, 2),
+                "stok": round(stok_ratio, 2),
+            },
+            "pd_breakdown": {
+                "bina": int(pd_bina),
+                "makine": int(pd_makine),
+                "elektronik": int(pd_elektronik),
+                "stok": int(pd_stok),
+            },
+        },
+    }
 
-# ====== Kullanıcı gi
+# --- BI Hesaplama -------------------------------------------------------------
+def calculate_bi_downtime_industrial(pd_ratio: float, s: SessionInputs) -> Tuple[int, int, int]:
+    calib = st.sess
