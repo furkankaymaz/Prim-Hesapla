@@ -1,39 +1,44 @@
 # -*- coding: utf-8 -*-
 #
-# TariffEQ – Hibrit Zekâ Destekli PD & BI Hasar Analiz Aracı (v6.4R)
+# TariffEQ – Hibrit Zekâ Destekli PD & BI Hasar Analiz Aracı (v6.4.1)
 # =======================================================================
 # Bu Streamlit uygulaması, reasürans ve katastrofik modelleme metodolojilerinden
 # esinlenerek geliştirilmiş parametreler ve tarifeye tam uyumlu hesaplama
 # mantığı ile ticari/sınai rizikolar için profesyonel seviyede bir deprem
 # hasar analizi sunar.
 #
-# GÜNCEL REVİZYON (v6.4R — Araştırma Odaklı AI):
-# - AI, faaliyet metninden sektör/ekipman anahtarları çıkarır ve Google Search
-#   Grounding (SDK destekliyse) ile araştırma yapmaya teşvik edilir.
-# - Üretilen kaynak/URL atıfları meta.notes içine enjekte edilir.
-# - Mevcut sayfa yerleşimi ve çıktılar aynen korunmuştur.
+# GÜNCEL REVİZYON NOTLARI (Eylül 2025 - v6.4.1 - Arama Entegrasyonu Güvenli)
+# 1) Gemini Web Araştırması Güvenli Aç/Kapa:
+#    - google-generativeai kütüphanesinde bazı versiyonlarda `google_search` / `google_search_retrieval`
+#      tool isimleri desteklenmediğinde "Unknown field for FunctionDeclaration" hatası doğuyordu.
+#    - Artık model, arama aracını DENE/GERİ DÖN yaklaşımıyla yükler: önce `google_search`, sonra
+#      `google_search_retrieval`, ikisi de başarısızsa araçsız çalışıp heuristik üretir.
+# 2) Araştırma Talimatları Prompt’a Gömülü:
+#    - AI, aktif arama aracı bulursa web’den (AFAD, MTA, USGS, üretici bültenleri vb.) güncel kanıt toplar;
+#      aksi halde aynı maddeleri heuristikle gerekçelendirir.
+# 3) UI, metrikler ve tablo/grafik yapısı DEĞİŞMEDİ.
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 import json
 import traceback
 import os
-import re
 
 # --- AI İÇİN KORUMALI IMPORT VE GÜVENLİ KONFİGÜRASYON ---
 _GEMINI_AVAILABLE = False
 try:
     import google.generativeai as genai
-    if st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
-        genai.configure(api_key=(st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")))
+    _api_key = (st.secrets.get("GEMINI_API_KEY") if hasattr(st, "secrets") else None) or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if _api_key:
+        genai.configure(api_key=_api_key)
         _GEMINI_AVAILABLE = True
     else:
         st.sidebar.warning("Gemini API anahtarı bulunamadı. AI özellikleri devre dışı.", icon="🔑")
         _GEMINI_AVAILABLE = False
-except (ImportError, Exception):
+except Exception:
     st.sidebar.error("Google AI kütüphanesi yüklenemedi. AI özellikleri devre dışı.", icon="🤖")
     _GEMINI_AVAILABLE = False
 
@@ -42,7 +47,6 @@ except (ImportError, Exception):
 
 # ESKİ NİTEL RAPORLAMA PROMPTU (Tüm Tesis Tipleri İçin)
 def get_qualitative_assessment_prompt(s: 'ScenarioInputs', triggered_rules: List[str]) -> str:
-    # ... (Bu fonksiyon, değişiklik olmadığı için önceki versiyondaki gibi kalmıştır) ...
     if s.tesis_tipi == tr("endustriyel_tesis"):
         p = s.industrial_params
         return f"""
@@ -97,26 +101,23 @@ def get_qualitative_assessment_prompt(s: 'ScenarioInputs', triggered_rules: List
     return "Seçilen tesis tipi için AI değerlendirmesi henüz aktif değil."
 
 
-# YENİ HİBRİT ZEKA PROMPTU (ARAŞTIRMA ODAKLI)
+# HİBRİT ZEKA ANALİST PROMPTU (Araştırma talimatları eklendi)
 AI_ANALYST_SYSTEM_PROMPT = r"""
-SİSTEM — TariffEQ v6.4R • Şeffaf AI ANALİST (Deprem Hasar Kalibrasyonu + Araştırma)
-AMAÇ ve ÇIKTI
-- Girdi: Kullanıcı formu + faaliyet_tanımı.
-- Görev: Deprem kaynaklı PD/BI kalibrasyon parametrelerini üret.
-- Çıktı: AŞAĞIDAKİ JSON ŞEMASINA %100 UYAN TEK PARÇA JSON. JSON dışında tek karakter yazma.
-- Deterministik: temperature ≤ 0.2
-- Türkiye önceliği: TBDY-2018, AFAD/MTA/İMO, belediye mikrobölgeleme. BI için son 24 ayda tedarik zinciri/altyapı raporları.
+SİSTEM MESAJI — TariffEQ v6.4 • Şeffaf AI ANALİST (Deprem Hasar Kalibrasyonu)
+AMAÇ VE SINIRLAR
+- Görevin: Kullanıcı girdileri ve serbest metin açıklamasından (faaliyet_tanimi) hareketle deprem kaynaklı PD ve BI hasar kalibrasyon parametrelerini üretmek.
+- Çıktın tek parça JSON (aşağıdaki şemaya birebir uy). JSON dışında tek karakter bile yazma.
+- Deterministik çalış: temperature ≤ 0.2.
+- Türkiye önceliği: TBDY-2018, HAZUS, FEMA P-58, yerel zemin ve YOKE pratikleri.
 
-ARAŞTIRMA KURALLARI
-- Eğer “google_search” aracı mevcutsa KULLAN. Her sayısal atamayı mümkünse bir URL ile gerekçelendir.
-- Kaynak önceliği: (1) TR resmi/akademik (AFAD, MTA, İMO, belediye), (2) uluslararası kamu/akademik (USGS, EERI, JRC, WB/OECD), (3) üretici/sanayi bültenleri (trafo, inverter, kompresör vb.), (4) güvenilir ticari/analist raporlar.
-- Tazelik: PD/zemin 2018+; BI lead time son 24 ay. Daha eski ise meta.confidence düşür, meta.notes’a uyarı yaz.
-- Sorgu şablonları (örnek):
-  • site:gov.tr (AFAD OR MTA) "{il} {ilçe} deprem tehlike haritası" "PGA" OR "spektral ivme"
-  • "{sektör_anahtarları}" "critical spare" lead time 2024..2025
-  • "{ekipman_anahtarları}" rebuild time OR downtime study 2024..2025
-  • "{il} liman altyapı deprem hasarı"  • "TBDY 2018 spektral ivme"
-- Araç yoksa: Heuristik yap ama her varsayımı meta.assumptions[]’a yaz; meta.confidence_0to1 ile belirsizlik belirt.
+WEB ARAŞTIRMASI (aktifse):
+- Google Search aracı etkinse şu öncelikle aramaları yap, kanıtları meta.notes’a ekle:
+  1) AFAD/MTA/TR gov — “deprem tehlike haritası {il}/{ilçe} PGA”, “mikrobölgeleme {ilçe} zemin sınıfı ZC/ZD/ZE sıvılaşma”
+  2) TBDY-2018 spektral ivme parametreleri (2018+)
+  3) Sektör ekipmanı — “{kritik_ekipman} lead time 2024..2025”, “transformer lead time 2024..2025”
+  4) Global endüstriyel deprem etkileri — EERI/USGS/JRC vaka özetleri
+- Her kanıtta: iddia + sayı/birim + tarih + yayıncı + URL’yi özetle. Çelişki varsa en güncel ve resmî/akademik olana daha çok ağırlık ver.
+- Araca erişimin yoksa aynı başlıkları heuristikle değerlendir, meta.assumptions ve confidence ile belirt.
 
 KALİBRASYON KURALLARI
 - pd_base_loss_ratio.* ∈ [0.01, 0.60]
@@ -127,22 +128,13 @@ KALİBRASYON KURALLARI
 - bi_calibration.kritik_ekipman_durus_carpani ∈ [1.00, 3.00]
 - bi_calibration.altyapi_gecikme_ay ∈ [0, 3]
 - bi_calibration.tedarik_zinciri_gecikme_ay ∈ [0, 12]
-- bi_calibration.buffer_bitmis_urun_stogu_gun ∈ [0, 120]
-- ENUM: Düşük|Orta|Yüksek
+- buffer_bitmis_urun_stogu_gun ∈ [0, 120]
+- Sınır dışı değerleri kırp (clamp) ve gerekçeyi meta.notes’a yaz.
 
-METİNDEN TETİKLEYİCİLER (örnek)
-- “yüksek raf/askılı sistem/tank/boru hattı/hassas cihaz” → yoke_carpani ≥ 1.20 (gerekçeyi meta.assumptions’a yaz)
-- zemin “ZD/ZE” veya “nehir yatağı/kıyı/dolgu” → zemin_carpani ≥ 1.20
-- “1998 öncesi” → pd_base_loss_ratio.bina +%15 (gerekçeyle)
-- GES “merkezi inverter” → kritik_ekipman_durus_carpani ≥ 1.30
+YOKE ÇIKARIMI:
+- “yüksek raf”, “askılı hat”, “tank”, “boru hattı”, “hassas cihaz”, “merkezi inverter” vb. sinyallerde yoke_carpani ≥ 1.20 yönünde değerlendir; gerekçeyi meta.assumptions’a yaz.
 
-KAYNAK GÖSTERME
-- Her önemli parametre ataması için meta.notes’a satır ekle:
-  "Kanıt: [bulgu özeti] — Kaynak: [yayıncı/ad] — Tarih: [yyyy] — URL: [https://...]"
-- Aracı kullandıysan, verilen atıfları da meta.notes’a ekle (kısa başlık + URL).
-- meta.confidence_0to1 alanını 0.0–1.0 arası ata.
-
-JSON ŞEMASI (AYNEN)
+ÇIKTI — ZORUNLU JSON ŞEMASI
 {
   "icerik_hassasiyeti": "Düşük|Orta|Yüksek",
   "kritik_makine_bagimliligi": "Düşük|Orta|Yüksek",
@@ -150,17 +142,22 @@ JSON ŞEMASI (AYNEN)
   "pd_base_loss_ratio_suggestion": {"bina": 0.00, "makine": 0.00, "elektronik": 0.00, "stok": 0.00},
   "pd_factor_suggestion": {"zemin_carpani": 1.00, "yoke_carpani": 1.00, "ffeq_potansiyel_carpani": 1.00, "stok_devrilme_carpani": 1.00},
   "bi_calibration": {"kritik_ekipman_durus_carpani": 1.00, "altyapi_gecikme_ay": 0, "tedarik_zinciri_gecikme_ay": 0, "buffer_bitmis_urun_stogu_gun": 0},
-  "risk_flags": ["YUMUSAK_KAT_RISKI","SIVILASMA_RISKI","ESKI_TASARIM_KODU"],
+  "risk_flags": ["YUMUSAK_KAT_RISKI","SIVILASMA_RISKI","ESKI_TASARIM_KODU","ALTYAPI_RISKI","MERKEZI_INVERTER_RISKI","TRACKER_RISKI"],
   "meta": {
       "confidence_0to1": 0.00,
       "assumptions": [],
-      "notes": ""
+      "notes": "Kanıt/varsayım özetleri; 'Kanıt: ... — Kaynak: ... — Tarih: ... — URL: ...'"
   }
 }
 """
 
 # --- TARİFE, ÇARPAN VERİLERİ VE SABİTLER ---
-TARIFE_RATES = {"Betonarme": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75], "Çelik": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75], "Yığma": [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06], "Diğer": [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06]}
+TARIFE_RATES = {
+    "Betonarme": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75],
+    "Çelik":      [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75],
+    "Yığma":      [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06],
+    "Diğer":      [6.13, 5.56, 3.75, 2.00, 1.56, 1.24, 1.06]
+}
 KOAS_FACTORS = {"80/20": 1.0, "75/25": 0.9375, "70/30": 0.875, "65/35": 0.8125, "60/40": 0.75, "55/45": 0.6875, "50/50": 0.625, "45/55": 0.5625, "40/60": 0.5, "90/10": 1.125, "100/0": 1.25}
 MUAFIYET_FACTORS = {2.0: 1.0, 3.0: 0.94, 4.0: 0.87, 5.0: 0.81, 10.0: 0.65, 1.5: 1.03, 1.0: 1.06, 0.5: 1.09, 0.1: 1.12}
 _DEPREM_ORAN = {1: 0.20, 2: 0.17, 3: 0.13, 4: 0.09, 5: 0.06, 6: 0.06, 7: 0.06}
@@ -170,7 +167,6 @@ _DEF_SPLIT_INDUSTRIAL = {"bina": 0.40, "makine": 0.40, "elektronik": 0.06, "stok
 # --- ÇEVİRİ SÖZLÜĞÜ ---
 T = {
     "title": {"TR": "TariffEQ – Hibrit Zekâ Destekli Risk Analizi", "EN": "TariffEQ – Hybrid AI-Powered Risk Analysis"},
-    # ... (Diğer çeviriler değişmedi) ...
     "tesis_tipi_secimi": {"TR": "1. Lütfen Analiz Etmek İstediğiniz Tesis Tipini Seçiniz", "EN": "1. Please Select the Facility Type to Analyze"},
     "endustriyel_tesis": {"TR": "Endüstriyel Tesis (Fabrika, Depo vb.)", "EN": "Industrial Facility (Factory, Warehouse etc.)"},
     "res": {"TR": "Enerji Santrali - Rüzgar (RES)", "EN": "Power Plant - Wind (WPP)"},
@@ -215,23 +211,100 @@ def tr(key: str) -> str:
     return T.get(key, {}).get(lang, key)
 
 def money(x: float) -> str:
-    return f"{x:,.0f} ₺".replace(",", ".")
+    try:
+        return f"{x:,.0f} ₺".replace(",", ".")
+    except Exception:
+        return f"{x} ₺"
 
 def _clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, float(x)))
 
-# --- GİRDİ VE HESAPLAMA MODELLERİ (REVİZE EDİLDİ) ---
+# === Gemini yardımcıları: arama aracını güvenli şekilde dene/geri dön =========
+def _mk_model(system_prompt: str, want_search: bool = True):
+    """
+    google-generativeai bazı sürümlerde arama araç isimlerini farklı bekler.
+    Burada sırayla deneriz: 'google_search' → 'google_search_retrieval' → araçsız.
+    Instantiation ya da generate_content sırasında hata çıkarsa araçsız moda geri döneriz.
+    """
+    if not _GEMINI_AVAILABLE:
+        return None, None
+    # Önce araçsız temel model (en güvenli)
+    base_kwargs = dict(model_name="gemini-1.5-flash", system_instruction=system_prompt)
+    # Ardından araçlı denemeler için tuple listesi:
+    tool_variants = []
+    if want_search:
+        tool_variants = [
+            [{"google_search": {}}],            # bazı sürümler
+            [{"google_search_retrieval": {}}],  # bazı sürümler
+        ]
+    # Deneme dizisi: önce araçlı varyantlar, olmazsa araçsız
+    tried = []
+    if want_search:
+        for tv in tool_variants:
+            try:
+                m = genai.GenerativeModel(**base_kwargs, tools=tv)  # type: ignore
+                return m, tv
+            except Exception as e:
+                tried.append(str(e))
+    # Araçsız
+    try:
+        m = genai.GenerativeModel(**base_kwargs)
+        return m, None
+    except Exception as e:
+        # En kötü durumda None dön
+        st.session_state.errors.append(f"Gemini model yüklenemedi: {e}\nDenemeler: {tried}")
+        return None, None
+
+def _normalize_calib_json(calib: Dict) -> Dict:
+    # ENUM’lar
+    def_enum = {"Düşük", "Orta", "Yüksek"}
+    for k in ("icerik_hassasiyeti", "kritik_makine_bagimliligi", "ffe_riski"):
+        v = calib.get(k, "Orta")
+        calib[k] = v if v in def_enum else "Orta"
+    # PD oranları
+    r = calib.get("pd_base_loss_ratio_suggestion", {}) or {}
+    for k in ("bina", "makine", "elektronik", "stok"):
+        r[k] = round(_clamp(float(r.get(k, 0.12)), 0.01, 0.60), 2)
+    calib["pd_base_loss_ratio_suggestion"] = r
+    # PD çarpanları
+    f = calib.get("pd_factor_suggestion", {}) or {}
+    f["zemin_carpani"] = round(_clamp(float(f.get("zemin_carpani", 1.00)), 0.85, 1.50), 2)
+    f["yoke_carpani"] = round(_clamp(float(f.get("yoke_carpani", 1.10)), 1.00, 1.60), 2)
+    f["ffeq_potansiyel_carpani"] = round(_clamp(float(f.get("ffeq_potansiyel_carpani", 1.00)), 1.00, 2.00), 2)
+    f["stok_devrilme_carpani"] = round(_clamp(float(f.get("stok_devrilme_carpani", 1.00)), 1.00, 2.50), 2)
+    calib["pd_factor_suggestion"] = f
+    # BI kalibrasyonu
+    b = calib.get("bi_calibration", {}) or {}
+    b["kritik_ekipman_durus_carpani"] = round(_clamp(float(b.get("kritik_ekipman_durus_carpani", 1.20)), 1.00, 3.00), 2)
+    b["altyapi_gecikme_ay"] = int(_clamp(int(b.get("altyapi_gecikme_ay", 0)), 0, 3))
+    b["tedarik_zinciri_gecikme_ay"] = int(_clamp(int(b.get("tedarik_zinciri_gecikme_ay", 1)), 0, 12))
+    b["buffer_bitmis_urun_stogu_gun"] = int(_clamp(int(b.get("buffer_bitmis_urun_stogu_gun", 0)), 0, 120))
+    calib["bi_calibration"] = b
+    # Risk bayrakları
+    flags = calib.get("risk_flags", [])
+    if not isinstance(flags, list):
+        flags = []
+    calib["risk_flags"] = flags
+    # Meta
+    meta = calib.get("meta", {}) or {}
+    meta["confidence_0to1"] = float(_clamp(float(meta.get("confidence_0to1", 0.6)), 0.0, 1.0))
+    if "assumptions" not in meta or not isinstance(meta.get("assumptions"), list):
+        meta["assumptions"] = []
+    if "notes" not in meta or not isinstance(meta.get("notes"), str):
+        meta["notes"] = "Heuristik dayanaklar kullanıldı."
+    calib["meta"] = meta
+    return calib
+
+
+# --- GİRDİ VE HESAPLAMA MODELLERİ ---
 @dataclass
 class IndustrialInputs:
     faaliyet_tanimi: str = "Otomotiv ana sanayiye metal şasi parçaları üreten bir tesis. Tesiste 5 adet 1000 tonluk hidrolik pres, CNC makineleri ve robotik kaynak hatları bulunmaktadır. Yüksek raflarda rulo sac malzeme stoklanmaktadır."
     yapi_turu: str = "Çelik"; yonetmelik_donemi: str = "2018 sonrası (Yeni Yönetmelik)"; kat_sayisi: str = "1-3 kat"
     yumusak_kat_riski: str = "Hayır"; yakin_cevre: str = "Ana Karada / Düz Ova"; zemin_sinifi: str = "ZC (Varsayılan)"
     isp_varligi: str = "Var (Test Edilmiş)"; alternatif_tesis: str = "Var (kısmi kapasite)"; bitmis_urun_stogu: int = 15; bi_gun_muafiyeti: int = 21
-    # YOKE_durumu kaldırıldı
-    # Granüler SI (opsiyonel)
     pd_bina_sum: int = 0; pd_makine_sum: int = 0; pd_elektronik_sum: int = 0; pd_stok_sum: int = 0
 
-# ... (Diğer dataclass'lar değişmedi) ...
 @dataclass
 class RESInputs:
     ek_detaylar: str = "Manisa'da, temel iyileştirmesi yapılmış bir yamaçta kurulu 25 adet 8 yıllık Nordex N90 türbini. Şalt sahası standart tipte ve tesise 1km uzakta."
@@ -256,28 +329,21 @@ class ScenarioInputs:
     ges_params: GESInputs = field(default_factory=GESInputs)
     hes_params: HESInputs = field(default_factory=HESInputs)
 
-# --- TEKNİK HESAPLAMA ÇEKİRDEĞİ (Değişiklik yok) ---
-# --- (Önceki versiyondaki tüm hesaplama fonksiyonları (industrial, res, ges, hes, prim vb.) buraya kopyalanır) ---
-# --- ENDÜSTRİYEL TESİS (YENİ HİBRİT MODEL) ---
+
+# --- TEKNİK HESAPLAMA ÇEKİRDEĞİ ---
 def calculate_pd_damage_industrial(s: ScenarioInputs) -> Dict:
     calib = st.session_state.get("ai_calibration_results")
     if not calib:
         raise ValueError("AI Kalibrasyon verisi bulunamadı. Lütfen analizi tekrar çalıştırın.")
-    
-    r = calib["pd_base_loss_ratio_suggestion"]
-    f = calib["pd_factor_suggestion"]
+    r = calib["pd_base_loss_ratio_suggestion"]; f = calib["pd_factor_suggestion"]
     si_total = int(s.si_pd or 0)
-    
     if si_total <= 0:
         return {"damage_amount": 0, "pml_ratio": 0.0, "_details": {"ratios": {}, "pd_breakdown": {}}}
 
     p = s.industrial_params
-    si_bina = int(p.pd_bina_sum or 0)
-    si_makine = int(p.pd_makine_sum or 0)
-    si_elektronik = int(p.pd_elektronik_sum or 0)
-    si_stok = int(p.pd_stok_sum or 0)
+    si_bina = int(p.pd_bina_sum or 0); si_makine = int(p.pd_makine_sum or 0)
+    si_elektronik = int(p.pd_elektronik_sum or 0); si_stok = int(p.pd_stok_sum or 0)
 
-    # Eğer granüler bedel girilmemişse, varsayılan dağılımı kullan
     if (si_bina + si_makine + si_elektronik + si_stok) == 0:
         si = {k: int(si_total * v) for k, v in _DEF_SPLIT_INDUSTRIAL.items()}
     else:
@@ -315,262 +381,187 @@ def calculate_bi_downtime_industrial(pd_ratio: float, s: ScenarioInputs) -> Tupl
     calib = st.session_state.get("ai_calibration_results")
     if not calib:
         raise ValueError("AI Kalibrasyon verisi bulunamadı. Lütfen analizi tekrar çalıştırın.")
-    
-    b = calib["bi_calibration"]
-    p = s.industrial_params
+    b = calib["bi_calibration"]; p = s.industrial_params
     base_repair = 30 + (float(pd_ratio) * 300.0)
     internal_downtime = int(base_repair * float(b["kritik_ekipman_durus_carpani"]))
     external_downtime = int((int(b["altyapi_gecikme_ay"]) + int(b["tedarik_zinciri_gecikme_ay"])) * 30)
-    gross_downtime = max(internal_downtime, external_downtime)
-    net_downtime_after_stock = max(0, gross_downtime - int(b.get("buffer_bitmis_urun_stogu_gun", p.bitmis_urun_stogu)))
-    net_downtime_after_wait = max(0, net_downtime_after_stock - p.bi_gun_muafiyeti)
-    final_downtime = min(s.azami_tazminat_suresi, net_downtime_after_wait)
-    return max(0, gross_downtime), max(0, int(final_downtime))
+    gross = max(internal_downtime, external_downtime)
+    net_after_stock = max(0, gross - int(b.get("buffer_bitmis_urun_stogu_gun", p.bitmis_urun_stogu)))
+    net_after_wait = max(0, net_after_stock - p.bi_gun_muafiyeti)
+    final = min(s.azami_tazminat_suresi, net_after_wait)
+    return max(0, gross), max(0, int(final))
 
 def calculate_pd_damage_res(s: ScenarioInputs) -> Dict[str, float]:
-    p = s.res_params; FACTORS = {"turbin_yas": {"5 yıldan yeni (Modern Teknoloji)": 0.9, "5-10 yıl arası (Olgun Teknoloji)": 1.0, "10+ yıl (Eski Teknoloji)": 1.25}, "arazi_jeoteknik": {"Kayalık ve Sağlam Zeminli Tepe": 0.85, "Yumuşak Zeminli / Toprak Tepe veya Ova": 1.35}}; base_oran = _DEPREM_ORAN.get(s.rg, 0.13) * 0.5; factor = FACTORS["turbin_yas"].get(p.turbin_yas, 1.0) * FACTORS["arazi_jeoteknik"].get(p.arazi_jeoteknik, 1.0); pml_ratio = min(0.40, max(0.01, base_oran * factor)); return {"damage_amount": s.si_pd * pml_ratio, "pml_ratio": pml_ratio}
+    p = s.res_params
+    FACTORS = {
+        "turbin_yas": {"5 yıldan yeni (Modern Teknoloji)": 0.9, "5-10 yıl arası (Olgun Teknoloji)": 1.0, "10+ yıl (Eski Teknoloji)": 1.25},
+        "arazi_jeoteknik": {"Kayalık ve Sağlam Zeminli Tepe": 0.85, "Yumuşak Zeminli / Toprak Tepe veya Ova": 1.35}
+    }
+    base_oran = _DEPREM_ORAN.get(s.rg, 0.13) * 0.5
+    factor = FACTORS["turbin_yas"].get(p.turbin_yas, 1.0) * FACTORS["arazi_jeoteknik"].get(p.arazi_jeoteknik, 1.0)
+    pml_ratio = min(0.40, max(0.01, base_oran * factor))
+    return {"damage_amount": s.si_pd * pml_ratio, "pml_ratio": pml_ratio}
+
 def calculate_bi_downtime_res(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, int]:
-    p = s.res_params; base_repair_days = 45 + (pd_ratio * 400); operational_factor = 1.0;
+    p = s.res_params
+    base_repair_days = 45 + (pd_ratio * 400); operational_factor = 1.0
     if p.salt_sahasi == "Standart Ekipman (Özel bir önlem yok)": operational_factor *= 1.5
     if "10+" in p.turbin_yas: operational_factor *= 1.1
-    gross_downtime = int(base_repair_days * operational_factor);
-    if s.rg in [1, 2]: gross_downtime += 45
-    net_downtime_raw = max(0, gross_downtime - p.bi_gun_muafiyeti); final_downtime = min(s.azami_tazminat_suresi, net_downtime_raw); return max(0, gross_downtime), max(0, int(final_downtime))
+    gross = int(base_repair_days * operational_factor)
+    if s.rg in [1, 2]: gross += 45
+    net_raw = max(0, gross - p.bi_gun_muafiyeti); final = min(s.azami_tazminat_suresi, net_raw)
+    return max(0, gross), max(0, int(final))
+
 def calculate_pd_damage_ges(s: ScenarioInputs) -> Dict[str, float]:
-    p = s.ges_params; FACTORS = {"panel_montaj": {"Sabit Eğimli Konstrüksiyon": 1.0, "Tek Eksenli Takipçi Sistem (Tracker)": 1.2}, "arazi_topo": {"Düz Ova / Düşük Eğimli Arazi": 1.0, "Orta / Yüksek Eğimli Arazi (Yamaç)": 1.3}}; base_oran = _DEPREM_ORAN.get(s.rg, 0.13) * 0.4; factor = FACTORS["panel_montaj"].get(p.panel_montaj_tipi, 1.0) * FACTORS["arazi_topo"].get(p.arazi_topografyasi, 1.0); pml_ratio = min(0.50, max(0.01, base_oran * factor)); return {"damage_amount": s.si_pd * pml_ratio, "pml_ratio": pml_ratio}
+    p = s.ges_params
+    FACTORS = {
+        "panel_montaj": {"Sabit Eğimli Konstrüksiyon": 1.0, "Tek Eksenli Takipçi Sistem (Tracker)": 1.2},
+        "arazi_topo": {"Düz Ova / Düşük Eğimli Arazi": 1.0, "Orta / Yüksek Eğimli Arazi (Yamaç)": 1.3}
+    }
+    base_oran = _DEPREM_ORAN.get(s.rg, 0.13) * 0.4
+    factor = FACTORS["panel_montaj"].get(p.panel_montaj_tipi, 1.0) * FACTORS["arazi_topo"].get(p.arazi_topografyasi, 1.0)
+    pml_ratio = min(0.50, max(0.01, base_oran * factor))
+    return {"damage_amount": s.si_pd * pml_ratio, "pml_ratio": pml_ratio}
+
 def calculate_bi_downtime_ges(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, int]:
-    p = s.ges_params; base_repair_days = 25 + (pd_ratio * 350); operational_factor = 1.0;
+    p = s.ges_params
+    base_repair_days = 25 + (pd_ratio * 350); operational_factor = 1.0
     if p.inverter_mimarisi == "Merkezi İnverter": operational_factor *= 1.4
-    gross_downtime = int(base_repair_days * operational_factor);
-    if s.rg in [1, 2]: gross_downtime += 30
-    net_downtime_raw = max(0, gross_downtime - p.bi_gun_muafiyeti); final_downtime = min(s.azami_tazminat_suresi, net_downtime_raw); return max(0, gross_downtime), max(0, int(final_downtime))
+    gross = int(base_repair_days * operational_factor)
+    if s.rg in [1, 2]: gross += 30
+    net_raw = max(0, gross - p.bi_gun_muafiyeti); final = min(s.azami_tazminat_suresi, net_raw)
+    return max(0, gross), max(0, int(final))
+
 def calculate_pd_damage_hes(s: ScenarioInputs) -> Dict[str, float]:
-    p = s.hes_params; FACTORS = {"baraj_tipi": {"Beton Ağırlık / Kemer": 1.0, "Toprak / Kaya Dolgu": 1.4, "Nehir Tipi (Barajsız / Regülatör)": 0.5}, "tesis_yili": {"1990 öncesi": 1.5, "1990-2010 arası": 1.1, "2010 sonrası": 0.9}}; base_oran = _DEPREM_ORAN.get(s.rg, 0.13) * 0.8; factor = FACTORS["baraj_tipi"].get(p.baraj_tipi, 1.0) * FACTORS["tesis_yili"].get(p.tesis_yili, 1.0); pml_ratio = min(0.80, max(0.02, base_oran * factor)); return {"damage_amount": s.si_pd * pml_ratio, "pml_ratio": pml_ratio}
+    p = s.hes_params
+    FACTORS = {
+        "baraj_tipi": {"Beton Ağırlık / Kemer": 1.0, "Toprak / Kaya Dolgu": 1.4, "Nehir Tipi (Barajsız / Regülatör)": 0.5},
+        "tesis_yili": {"1990 öncesi": 1.5, "1990-2010 arası": 1.1, "2010 sonrası": 0.9}
+    }
+    base_oran = _DEPREM_ORAN.get(s.rg, 0.13) * 0.8
+    factor = FACTORS["baraj_tipi"].get(p.baraj_tipi, 1.0) * FACTORS["tesis_yili"].get(p.tesis_yili, 1.0)
+    pml_ratio = min(0.80, max(0.02, base_oran * factor))
+    return {"damage_amount": s.si_pd * pml_ratio, "pml_ratio": pml_ratio}
+
 def calculate_bi_downtime_hes(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, int]:
-    p = s.hes_params; base_repair_days = 90 + (pd_ratio * 500); operational_factor = 1.0;
+    p = s.hes_params
+    base_repair_days = 90 + (pd_ratio * 500); operational_factor = 1.0
     if p.santral_konumu == "Baraj Gövdesine Bitişik / İçinde": operational_factor *= 1.3
-    gross_downtime = int(base_repair_days * operational_factor);
-    if s.rg in [1, 2]: gross_downtime += 60
-    net_downtime_raw = max(0, gross_downtime - p.bi_gun_muafiyeti); final_downtime = min(s.azami_tazminat_suresi, net_downtime_raw); return max(0, gross_downtime), max(0, int(final_downtime))
+    gross = int(base_repair_days * operational_factor)
+    if s.rg in [1, 2]: gross += 60
+    net_raw = max(0, gross - p.bi_gun_muafiyeti); final = min(s.azami_tazminat_suresi, net_raw)
+    return max(0, gross), max(0, int(final))
+
 def get_allowed_options(si_pd: int) -> Tuple[List[str], List[float]]:
     koas_opts = list(KOAS_FACTORS.keys())[:9]; muaf_opts = list(MUAFIYET_FACTORS.keys())[:5]
-    if si_pd > 3_500_000_000: koas_opts.extend(list(KOAS_FACTORS.keys())[9:]); muaf_opts.extend(list(MUAFIYET_FACTORS.keys())[5:])
+    if si_pd > 3_500_000_000:
+        koas_opts.extend(list(KOAS_FACTORS.keys())[9:]); muaf_opts.extend(list(MUAFIYET_FACTORS.keys())[5:])
     return koas_opts, muaf_opts
+
 def calculate_premium(si: float, tarife_yapi_turu: str, rg: int, koas: str, muaf: float, is_bi: bool = False) -> float:
-    base_rate = TARIFE_RATES.get(tarife_yapi_turu, TARIFE_RATES["Diğer"])[rg - 1]; prim_bedeli = min(si, 3_500_000_000) if not is_bi else si;
-    if is_bi: return (prim_bedeli * base_rate * 0.75) / 1000.0
-    factor = KOAS_FACTORS.get(koas, 1.0) * MUAFIYET_FACTORS.get(muaf, 1.0); return (prim_bedeli * base_rate * factor) / 1000.0
+    base_rate = TARIFE_RATES.get(tarife_yapi_turu, TARIFE_RATES["Diğer"])[rg - 1]
+    prim_bedeli = min(si, 3_500_000_000) if not is_bi else si
+    if is_bi:
+        return (prim_bedeli * base_rate * 0.75) / 1000.0
+    factor = KOAS_FACTORS.get(koas, 1.0) * MUAFIYET_FACTORS.get(muaf, 1.0)
+    return (prim_bedeli * base_rate * factor) / 1000.0
+
 def calculate_net_claim(si_pd: int, hasar_tutari: float, koas: str, muaf_pct: float) -> Dict[str, float]:
-    muafiyet_tutari = si_pd * (muaf_pct / 100.0); muafiyet_sonrasi_hasar = max(0.0, hasar_tutari - muafiyet_tutari); sirket_pay_orani = float(koas.split('/')[0]) / 100.0; net_tazminat = muafiyet_sonrasi_hasar * sirket_pay_orani; sigortalida_kalan = hasar_tutari - net_tazminat; return {"net_tazminat": net_tazminat, "sigortalida_kalan": sigortalida_kalan}
+    muafiyet_tutari = si_pd * (muaf_pct / 100.0)
+    muafiyet_sonrasi_hasar = max(0.0, hasar_tutari - muafiyet_tutari)
+    sirket_pay_orani = float(koas.split('/')[0]) / 100.0
+    net_tazminat = muafiyet_sonrasi_hasar * sirket_pay_orani
+    sigortalida_kalan = hasar_tutari - net_tazminat
+    return {"net_tazminat": net_tazminat, "sigortalida_kalan": sigortalida_kalan}
 
 
-# --- ARAŞTIRMA YARDIMCILARI (sektör/ekipman çıkarımı + sorgu üretimi) ---
-def _extract_sector_terms(text: str) -> Dict[str, List[str]]:
-    text_l = (text or "").lower()
-    sektor_terms = []
-    if any(w in text_l for w in ["otomotiv", "pres", "şasi", "sac", "kalıp"]):
-        sektor_terms.append("automotive stamping / metal forming")
-    if any(w in text_l for w in ["gıda", "içecek", "şişeleme", "dolum"]):
-        sektor_terms.append("food & beverage bottling")
-    if any(w in text_l for w in ["cam fırını", "fırın", "ergitme"]):
-        sektor_terms.append("glass furnace")
-    if any(w in text_l for w in ["yarı iletken", "wafer", "cleanroom", "fotolitografi"]):
-        sektor_terms.append("semiconductor manufacturing")
-    if any(w in text_l for w in ["kimya", "reaktör", "tank", "solvent"]):
-        sektor_terms.append("chemical processing")
-
-    ekipman_terms = []
-    if any(w in text_l for w in ["pres", "hidrolik pres"]):
-        ekipman_terms.append("hydraulic press")
-    if "cnc" in text_l:
-        ekipman_terms.append("CNC machine")
-    if any(w in text_l for w in ["kompresör", "compressor"]):
-        ekipman_terms.append("compressor")
-    if any(w in text_l for w in ["inverter", "trafo", "transformatör", "şalt", "switchgear"]):
-        ekipman_terms += ["inverter", "transformer", "switchgear"]
-    if any(w in text_l for w in ["yüksek raf", "raf sistemi", "askılı", "asma tavan"]):
-        ekipman_terms.append("high-bay rack / suspended systems")
-    if any(w in text_l for w in ["tank", "boru", "hat", "pipeline"]):
-        ekipman_terms.append("tanks & process piping")
-
-    return {"sektor": sorted(set(sektor_terms)), "ekipman": sorted(set(ekipman_terms))}
-
-def _build_research_queries(payload: dict, sektor_keys: List[str], ekipman_keys: List[str]) -> Dict[str, List[str]]:
-    il = payload.get("yakin_cevre", "")
-    rg = payload.get("rg", "")
-    zemin = payload.get("zemin_sinifi", "")
-
-    q_pd = [
-        f'site:gov.tr (AFAD OR MTA) "deprem tehlike haritası" "{il}" "PGA" OR "spektral ivme"',
-        f'"Türkiye Bina Deprem Yönetmeliği 2018" "spektral ivme" "rg {rg}"',
-        f'"mikrobölgeleme" "{il}" "{zemin}" "sıvılaşma"'
-    ]
-    q_yoke = [
-        'endüstriyel tesis "yapısal olmayan eleman" sismik koruma raf devrilmesi',
-        'nonstructural seismic restraints industrial racks piping tanks'
-    ]
-    q_bi = []
-    if sektor_keys:
-        q_bi.append(f'{" ,".join(sektor_keys)} "critical spare" lead time 2024..2025')
-    if ekipman_keys:
-        q_bi.append(f'{" ,".join(ekipman_keys)} rebuild time OR downtime study 2024..2025')
-    q_bi += [
-        'transformer lead time 2024..2025 MV LV',
-        f'"{il}" liman altyapı deprem hasarı raporu',
-        f'"{il}" enerji iletim hatları deprem etkisi'
-    ]
-    return {"pd_queries": q_pd, "yoke_queries": q_yoke, "bi_queries": q_bi}
-
-
-# --- AI FONKSİYONLARI (REVİZE EDİLDİ — Araştırma destekli) ---
+# --- AI FONKSİYONLARI (Araştırma aracı güvenli) ---
 @st.cache_data(show_spinner=False)
 def get_ai_calibration_industrial(s: ScenarioInputs) -> Dict:
     if not _GEMINI_AVAILABLE:
         return {}
     p = s.industrial_params
     payload = {
-        "facility_type": "Endüstriyel", "rg": int(s.rg), "si_pd_total_TL": int(s.si_pd),
-        "annual_gross_profit_TL": int(s.yillik_brut_kar), "max_indemnity_days": int(s.azami_tazminat_suresi),
-        "bi_wait_days": int(p.bi_gun_muafiyeti), "yapi_turu": p.yapi_turu, "yonetmelik_donemi": p.yonetmelik_donemi,
-        "kat_sayisi": p.kat_sayisi, "zemin_sinifi": p.zemin_sinifi, "yakin_cevre": p.yakin_cevre,
-        "yumusak_kat_riski": p.yumusak_kat_riski,  # YOKE girdisi kaldırıldı
-        "ISP": p.isp_varligi, "alternatif_tesis": p.alternatif_tesis,
-        "bitmis_urun_stogu_gun": int(p.bitmis_urun_stogu or 0), "faaliyet_tanimi": p.faaliyet_tanimi or "",
+        "facility_type": "Endüstriyel",
+        "rg": int(s.rg),
+        "si_pd_total_TL": int(s.si_pd),
+        "annual_gross_profit_TL": int(s.yillik_brut_kar),
+        "max_indemnity_days": int(s.azami_tazminat_suresi),
+        "bi_wait_days": int(p.bi_gun_muafiyeti),
+        "yapi_turu": p.yapi_turu,
+        "yonetmelik_donemi": p.yonetmelik_donemi,
+        "kat_sayisi": p.kat_sayisi,
+        "zemin_sinifi": p.zemin_sinifi,
+        "yakin_cevre": p.yakin_cevre,
+        "yumusak_kat_riski": p.yumusak_kat_riski,
+        "ISP": p.isp_varligi,
+        "alternatif_tesis": p.alternatif_tesis,
+        "bitmis_urun_stogu_gun": int(p.bitmis_urun_stogu or 0),
+        "faaliyet_tanimi": p.faaliyet_tanimi or "",
     }
+    # Kullanıcıya şeffaf: arama aracı denendi mi?
+    model, tools_used = _mk_model(AI_ANALYST_SYSTEM_PROMPT, want_search=True)
+    if model is None:
+        return {}
 
-    keys = _extract_sector_terms(payload["faaliyet_tanimi"])
-    queries = _build_research_queries(payload, keys["sektor"], keys["ekipman"])
-
-    # Araç tanımı (SDK sürümüne göre esnek)
-    tools_arg = None
-    try:
-        tools_arg = [{"google_search": {}}]  # Geniş uyumluluk için sözlük formatı
-    except Exception:
-        tools_arg = None
-
-    # Pro: grounding için pro kullan, flash da olur; response JSON istiyoruz
-    try:
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
-            system_instruction=AI_ANALYST_SYSTEM_PROMPT,
-            tools=tools_arg
-        )
-    except TypeError:
-        # Bazı sürümlerde tools burada kabul edilmeyebilir
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
-            system_instruction=AI_ANALYST_SYSTEM_PROMPT
-        )
+    prompt_user = (
+        "KULLANICI GİRDİLERİ (JSON):\n"
+        + json.dumps(payload, ensure_ascii=False)
+        + "\n---\n"
+        + "ARAŞTIRMA TALEBİ:\n"
+        + "- Eğer arama aracı etkinse, öncelikli sorgular: AFAD/MTA PGA & mikrobölgeleme; TBDY-2018 spektral ivme; "
+          "kritik ekipman lead-time (2024..2025); trafo lead-time; EERI/USGS endüstriyel etki örnekleri.\n"
+        + "- Arama aracı yoksa heuristik üret ve meta.assumptions'a ekle."
+    )
 
     generation_config = {"temperature": 0.1, "top_p": 0.8, "response_mime_type": "application/json"}
-    user_block = "ARAŞTIRMA SORGULARI (rehber, aracı varsa kullan):\n" + json.dumps(queries, ensure_ascii=False, indent=2) + \
-                 "\n\nKULLANICI GİRDİLERİ (JSON):\n" + json.dumps(payload, ensure_ascii=False)
+
+    # generate_content: araçlı model bazı sürümlerde çağrıda patlayabilir → araçsıza geri dön
+    def _call_model(mdl):
+        return mdl.generate_content(prompt_user, generation_config=generation_config)
 
     try:
-        # Bazı SDK sürümlerinde tools parametresi generate_content içinde verilmeli olabilir
-        try:
-            response = model.generate_content(user_block, generation_config=generation_config)
-        except TypeError:
-            response = model.generate_content(user_block, generation_config=generation_config, tools=tools_arg)
+        resp = _call_model(model)
     except Exception as e:
-        st.session_state.errors.append(f"AI Parametre Hatası (çağrı): {str(e)}\n{traceback.format_exc()}")
-        return {}
-
-    if not response or not getattr(response, "text", None):
-        st.session_state.errors.append("AI Parametre Hatası: Yanıt boş veya beklenmedik.")
-        return {}
-
-    try:
-        calib = json.loads(response.text)
-    except Exception as e:
-        st.session_state.errors.append(f"AI JSON ayrıştırma hatası: {str(e)}\nYanıt: {response.text[:500]}")
-        return {}
-
-    # Gelen yanıtta doğrulama ve clamping
-    def _enumfix(v: str) -> str:
-        return v if v in ("Düşük", "Orta", "Yüksek") else "Orta"
-
-    r = calib.get("pd_base_loss_ratio_suggestion", {}) or {}
-    f = calib.get("pd_factor_suggestion", {}) or {}
-    b = calib.get("bi_calibration", {}) or {}
-    calib["icerik_hassasiyeti"] = _enumfix(calib.get("icerik_hassasiyeti", "Orta"))
-    calib["ffe_riski"] = _enumfix(calib.get("ffe_riski", "Orta"))
-    calib["kritik_makine_bagimliligi"] = _enumfix(calib.get("kritik_makine_bagimliligi", "Orta"))
-
-    for key in ("bina", "makine", "elektronik", "stok"):
+        # araçlı kullanım hatasıysa araçsız tekrar dene
         try:
-            r[key] = round(_clamp(float(r.get(key, 0.12)), 0.01, 0.60), 2)
-        except Exception:
-            r[key] = 0.12
+            model_no_tools, _ = _mk_model(AI_ANALYST_SYSTEM_PROMPT, want_search=False)
+            resp = _call_model(model_no_tools)
+            st.session_state.errors.append(f"Arama aracı devre dışı bırakıldı (fallback): {e}")
+        except Exception as e2:
+            st.session_state.errors.append(f"AI Parametre Hatası (araçsız deneme başarısız): {e2}\n{traceback.format_exc()}")
+            return {}
 
-    f["zemin_carpani"] = round(_clamp(float(f.get("zemin_carpani", 1.00)), 0.85, 1.50), 2)
-    f["yoke_carpani"] = round(_clamp(float(f.get("yoke_carpani", 1.00)), 1.00, 1.60), 2)
-    f["ffeq_potansiyel_carpani"] = round(_clamp(float(f.get("ffeq_potansiyel_carpani", 1.00)), 1.00, 2.00), 2)
-    f["stok_devrilme_carpani"] = round(_clamp(float(f.get("stok_devrilme_carpani", 1.00)), 1.00, 2.50), 2)
+    if not resp or not getattr(resp, "text", None):
+        st.session_state.errors.append("Gemini yanıtı boş döndü.")
+        return {}
 
-    b["kritik_ekipman_durus_carpani"] = round(_clamp(float(b.get("kritik_ekipman_durus_carpani", 1.20)), 1.00, 3.00), 2)
     try:
-        b["altyapi_gecikme_ay"] = int(_clamp(int(b.get("altyapi_gecikme_ay", 0)), 0, 3))
-    except Exception:
-        b["altyapi_gecikme_ay"] = 0
-    try:
-        b["tedarik_zinciri_gecikme_ay"] = int(_clamp(int(b.get("tedarik_zinciri_gecikme_ay", 1)), 0, 12))
-    except Exception:
-        b["tedarik_zinciri_gecikme_ay"] = 1
-    try:
-        b["buffer_bitmis_urun_stogu_gun"] = int(_clamp(int(b.get("buffer_bitmis_urun_stogu_gun", 0)), 0, 120))
-    except Exception:
-        b["buffer_bitmis_urun_stogu_gun"] = 0
+        raw = json.loads(resp.text)
+    except Exception as e:
+        st.session_state.errors.append(f"Gemini JSON ayrıştırılamadı: {e}\nYanıt: {resp.text[:400]}")
+        return {}
 
-    calib["pd_base_loss_ratio_suggestion"] = r
-    calib["pd_factor_suggestion"] = f
-    calib["bi_calibration"] = b
-
-    # Grounding/atf verilerini meta.notes'a ekleme (SDK sürümlerine dayanıklı)
-    notes_extra = []
+    calib = _normalize_calib_json(raw)
+    # Meta’ya arama aracı bilgisi ekleyelim (şeffaflık)
     try:
-        cm = getattr(response.candidates[0], "citation_metadata", None)
-        if cm and getattr(cm, "citation_sources", None):
-            for c in cm.citation_sources:
-                title = getattr(c, "title", "") or ""
-                uri = getattr(c, "uri", "") or ""
-                if uri:
-                    notes_extra.append(f"Kanıt: (grounded) — Kaynak: {title} — Tarih: — URL: {uri}")
+        meta = calib.get("meta", {}) or {}
+        meta["search_tool"] = "enabled" if tools_used else "disabled"
+        calib["meta"] = meta
     except Exception:
         pass
-    try:
-        gm = getattr(response.candidates[0], "grounding_metadata", None)
-        if gm and getattr(gm, "grounding_chunks", None):
-            for ch in gm.grounding_chunks:
-                web = getattr(ch, "web", None)
-                if web and getattr(web, "uri", None):
-                    title = getattr(web, "title", "") or ""
-                    notes_extra.append(f"Kanıt: (grounded) — Kaynak: {title} — Tarih: — URL: {web.uri}")
-    except Exception:
-        pass
-
-    meta = calib.get("meta", {}) or {}
-    meta_notes = (meta.get("notes") or "").strip()
-    if notes_extra:
-        meta_notes = (meta_notes + ("\n" if meta_notes else "")) + "\n".join(sorted(set(notes_extra)))
-    meta["notes"] = meta_notes
-    if "assumptions" not in meta:
-        meta["assumptions"] = []
-    if "confidence_0to1" not in meta:
-        meta["confidence_0to1"] = 0.6
-    calib["meta"] = meta
-
-    st.session_state.ai_calibration_results = calib
     return calib
 
 @st.cache_data(show_spinner=False)
 def generate_technical_assessment(s: ScenarioInputs, triggered_rules: List[str]) -> str:
-    # ... (Bu fonksiyon değişmedi) ...
-    if not _GEMINI_AVAILABLE: return "AI servisi aktif değil."
+    if not _GEMINI_AVAILABLE:
+        return "AI servisi aktif değil."
     prompt = get_qualitative_assessment_prompt(s, triggered_rules)
-    if not prompt: return "Seçilen tesis tipi için AI değerlendirmesi henüz aktif değil."
+    if not prompt:
+        return "Seçilen tesis tipi için AI değerlendirmesi henüz aktif değil."
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Raporlayıcı kısım için arama gerekli değil → araçsız model
+        model, _ = _mk_model(system_prompt="", want_search=False)
         response = model.generate_content(prompt, generation_config={"temperature": 0.2})
         return response.text
     except Exception as e:
@@ -578,7 +569,7 @@ def generate_technical_assessment(s: ScenarioInputs, triggered_rules: List[str])
         return "AI Teknik Değerlendirme raporu oluşturulamadı."
 
 
-# --- STREAMLIT UYGULAMASI (REVİZE EDİLDİ) ---
+# --- STREAMLIT UYGULAMASI ---
 def main():
     st.set_page_config(page_title=T["title"]["TR"], layout="wide", page_icon="🏗️")
     if 'run_clicked' not in st.session_state: st.session_state.run_clicked = False
@@ -589,20 +580,22 @@ def main():
     if 's_inputs' not in st.session_state: st.session_state.s_inputs = ScenarioInputs()
 
     tesis_tipi_secenekleri = [tr("endustriyel_tesis"), tr("res"), tr("ges"), tr("hes")]
-    try: current_index = tesis_tipi_secenekleri.index(st.session_state.s_inputs.tesis_tipi)
-    except ValueError: current_index = 0
+    try:
+        current_index = tesis_tipi_secenekleri.index(st.session_state.s_inputs.tesis_tipi)
+    except ValueError:
+        current_index = 0
 
     def on_tesis_tipi_change():
         st.session_state.run_clicked = False
         st.session_state.s_inputs = ScenarioInputs(tesis_tipi=st.session_state.tesis_tipi_selector)
 
     selected_tesis_tipi = st.selectbox(tr("tesis_tipi_secimi"), tesis_tipi_secenekleri, index=current_index, on_change=on_tesis_tipi_change, key="tesis_tipi_selector")
-    
+
     s_inputs = st.session_state.s_inputs
     s_inputs.tesis_tipi = selected_tesis_tipi
-    
+
     st.header(tr("inputs_header"))
-    
+
     if s_inputs.tesis_tipi == tr("endustriyel_tesis"):
         p_ind = s_inputs.industrial_params
         col1, col2, col3 = st.columns(3)
@@ -625,8 +618,7 @@ def main():
             p_ind.zemin_sinifi = st.selectbox("Zemin Sınıfı", ["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"])
             p_ind.yakin_cevre = st.selectbox("Tesisin Yakın Çevresi", ["Nehir Yatağı / Göl Kenarı / Kıyı Şeridi", "Ana Karada / Düz Ova", "Dolgu Zemin Üzerinde"])
             p_ind.yumusak_kat_riski = st.selectbox(tr("yumusak_kat"), ["Hayır", "Evet"], help=tr("yumusak_kat_help"))
-            # YOKE GİRDİSİ KALDIRILDI
-            
+
         with col3:
             st.subheader(tr("bi_header"))
             s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
@@ -635,69 +627,121 @@ def main():
             p_ind.isp_varligi = st.selectbox("İş Sürekliliği Planı", ["Yok (Varsayılan)", "Var (Test Edilmemiş)", "Var (Test Edilmiş)"])
             p_ind.alternatif_tesis = st.selectbox("Alternatif Tesis", ["Yok", "Var (kısmi kapasite)", "Var (tam kapasite)"])
             p_ind.bitmis_urun_stogu = st.number_input("Bitmiş Ürün Stoğu (gün)", value=p_ind.bitmis_urun_stogu, min_value=0, max_value=120)
-            
-    # ... (RES, GES, HES UI kodları değişmeden kalır) ...
+
     elif s_inputs.tesis_tipi == tr("res"):
-        p_res = s_inputs.res_params; col1, col2, col3 = st.columns(3);
-        with col1: st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000); p_res.ek_detaylar = st.text_area(tr("activity_desc_res"), p_res.ek_detaylar, height=125)
-        with col2: st.subheader(tr("res_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg); p_res.turbin_yas = st.selectbox(tr("turbin_yas"), ["5 yıldan yeni (Modern Teknoloji)", "5-10 yıl arası (Olgun Teknoloji)", "10+ yıl (Eski Teknoloji)"]); p_res.arazi_jeoteknik = st.selectbox(tr("arazi_jeoteknik"), ["Kayalık ve Sağlam Zeminli Tepe", "Yumuşak Zeminli / Toprak Tepe veya Ova"]); p_res.salt_sahasi = st.selectbox(tr("salt_sahasi"), ["Standart Ekipman (Özel bir önlem yok)", "Sismik Izolatörlü veya Güçlendirilmiş Ekipman"])
-        with col3: st.subheader(tr("bi_header")); s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay"); p_res.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [30, 45, 60, 90])
+        p_res = s_inputs.res_params
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.subheader(tr("base_header"))
+            s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
+            s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
+            p_res.ek_detaylar = st.text_area(tr("activity_desc_res"), p_res.ek_detaylar, height=125)
+        with col2:
+            st.subheader(tr("res_header"))
+            s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
+            p_res.turbin_yas = st.selectbox(tr("turbin_yas"), ["5 yıldan yeni (Modern Teknoloji)", "5-10 yıl arası (Olgun Teknoloji)", "10+ yıl (Eski Teknoloji)"])
+            p_res.arazi_jeoteknik = st.selectbox(tr("arazi_jeoteknik"), ["Kayalık ve Sağlam Zeminli Tepe", "Yumuşak Zeminli / Toprak Tepe veya Ova"])
+            p_res.salt_sahasi = st.selectbox(tr("salt_sahasi"), ["Standart Ekipman (Özel bir önlem yok)", "Sismik Izolatörlü veya Güçlendirilmiş Ekipman"])
+        with col3:
+            st.subheader(tr("bi_header"))
+            s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay")
+            p_res.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [30, 45, 60, 90])
+
     elif s_inputs.tesis_tipi == tr("ges"):
-        p_ges = s_inputs.ges_params; col1, col2, col3 = st.columns(3)
-        with col1: st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000); p_ges.ek_detaylar = st.text_area(tr("activity_desc_ges"), p_ges.ek_detaylar, height=125)
-        with col2: st.subheader(tr("ges_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg); p_ges.panel_montaj_tipi = st.selectbox(tr("panel_montaj"), ["Sabit Eğimli Konstrüksiyon", "Tek Eksenli Takipçi Sistem (Tracker)"]); p_ges.arazi_topografyasi = st.selectbox(tr("arazi_topo"), ["Düz Ova / Düşük Eğimli Arazi", "Orta / Yüksek Eğimli Arazi (Yamaç)"]); p_ges.inverter_mimarisi = st.selectbox(tr("inverter_mimari"), ["Merkezi İnverter", "Dizi (String) İnverter"])
-        with col3: st.subheader(tr("bi_header")); s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay"); p_ges.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [30, 45, 60, 90])
+        p_ges = s_inputs.ges_params
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.subheader(tr("base_header"))
+            s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
+            s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
+            p_ges.ek_detaylar = st.text_area(tr("activity_desc_ges"), p_ges.ek_detaylar, height=125)
+        with col2:
+            st.subheader(tr("ges_header"))
+            s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
+            p_ges.panel_montaj_tipi = st.selectbox(tr("panel_montaj"), ["Sabit Eğimli Konstrüksiyon", "Tek Eksenli Takipçi Sistem (Tracker)"])
+            p_ges.arazi_topografyasi = st.selectbox(tr("arazi_topo"), ["Düz Ova / Düşük Eğimli Arazi", "Orta / Yüksek Eğimli Arazi (Yamaç)"])
+            p_ges.inverter_mimarisi = st.selectbox(tr("inverter_mimari"), ["Merkezi İnverter", "Dizi (String) İnverter"])
+        with col3:
+            st.subheader(tr("bi_header"))
+            s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay")
+            p_ges.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [30, 45, 60, 90])
+
     elif s_inputs.tesis_tipi == tr("hes"):
-        p_hes = s_inputs.hes_params; col1, col2, col3 = st.columns(3)
-        with col1: st.subheader(tr("base_header")); s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000); s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000); p_hes.ek_detaylar = st.text_area(tr("activity_desc_hes"), p_hes.ek_detaylar, height=125)
-        with col2: st.subheader(tr("hes_header")); s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg); p_hes.baraj_tipi = st.selectbox(tr("baraj_tipi"), ["Beton Ağırlık / Kemer", "Toprak / Kaya Dolgu", "Nehir Tipi (Barajsız / Regülatör)"]); p_hes.tesis_yili = st.selectbox(tr("tesis_yili"), ["1990 öncesi", "1990-2010 arası", "2010 sonrası"]); p_hes.santral_konumu = st.selectbox(tr("santral_konumu"), ["Baraj Gövdesine Bitişik / İçinde", "Yeraltı (Kavern)", "Barajdan Ayrı / Uzak"])
-        with col3: st.subheader(tr("bi_header")); s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay"); p_hes.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [60, 90, 120, 180])
+        p_hes = s_inputs.hes_params
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.subheader(tr("base_header"))
+            s_inputs.si_pd = st.number_input(tr("si_pd"), min_value=1_000_000, value=s_inputs.si_pd, step=10_000_000)
+            s_inputs.yillik_brut_kar = st.number_input(tr("gross_profit"), min_value=0, value=s_inputs.yillik_brut_kar, step=10_000_000)
+            p_hes.ek_detaylar = st.text_area(tr("activity_desc_hes"), p_hes.ek_detaylar, height=125)
+        with col2:
+            st.subheader(tr("hes_header"))
+            s_inputs.rg = st.select_slider(tr("risk_zone"), options=list(range(1, 8)), value=s_inputs.rg)
+            p_hes.baraj_tipi = st.selectbox(tr("baraj_tipi"), ["Beton Ağırlık / Kemer", "Toprak / Kaya Dolgu", "Nehir Tipi (Barajsız / Regülatör)"])
+            p_hes.tesis_yili = st.selectbox(tr("tesis_yili"), ["1990 öncesi", "1990-2010 arası", "2010 sonrası"])
+            p_hes.santral_konumu = st.selectbox(tr("santral_konumu"), ["Baraj Gövdesine Bitişik / İçinde", "Yeraltı (Kavern)", "Barajdan Ayrı / Uzak"])
+        with col3:
+            st.subheader(tr("bi_header"))
+            s_inputs.azami_tazminat_suresi = st.selectbox(tr("azami_tazminat"), [365, 540, 730], format_func=lambda x: f"{int(x/30)} Ay")
+            p_hes.bi_gun_muafiyeti = st.selectbox(tr("bi_wait"), [60, 90, 120, 180])
 
     st.markdown("---")
     if st.button(f"🚀 {tr('btn_run')}", use_container_width=True, type="primary"):
-        st.session_state.run_clicked = True; st.session_state.s_inputs = s_inputs; st.session_state.errors = []; st.session_state.ai_calibration_results = {}
-    
+        st.session_state.run_clicked = True
+        st.session_state.s_inputs = s_inputs
+        st.session_state.errors = []
+        st.session_state.ai_calibration_results = {}
+
     if st.session_state.run_clicked:
-        s_inputs = st.session_state.s_inputs; triggered_rules = []
-        
+        s_inputs = st.session_state.s_inputs
+        triggered_rules: List[str] = []
+
         try:
-            # ... (Hesaplama çağırma mantığı değişmedi) ...
             if s_inputs.tesis_tipi == tr("endustriyel_tesis"):
                 with st.spinner("AI Hibrit Zekâ Motoru endüstriyel tesisinizi kalibre ediyor..."):
                     ai_calib = get_ai_calibration_industrial(s_inputs)
                     st.session_state.ai_calibration_results = ai_calib
-                    triggered_rules = ai_calib.get("risk_flags", [])
+                    triggered_rules = ai_calib.get("risk_flags", []) if ai_calib else []
                 pd_results = calculate_pd_damage_industrial(s_inputs)
                 gross_bi_days, net_bi_days_final = calculate_bi_downtime_industrial(pd_results["pml_ratio"], s_inputs)
                 tarife_yapi_turu = s_inputs.industrial_params.yapi_turu
+
             elif s_inputs.tesis_tipi == tr("res"):
-                p_res = s_inputs.res_params;
+                p_res = s_inputs.res_params
                 if "10+" in p_res.turbin_yas: triggered_rules.append("ESKI_TEKNOLOJI")
                 if "Yumuşak Zeminli" in p_res.arazi_jeoteknik: triggered_rules.append("YUMUSAK_ZEMIN")
                 if "Standart Ekipman" in p_res.salt_sahasi: triggered_rules.append("STANDART_SALT_SAHASI")
-                pd_results = calculate_pd_damage_res(s_inputs); gross_bi_days, net_bi_days_final = calculate_bi_downtime_res(pd_results["pml_ratio"], s_inputs); tarife_yapi_turu = "Diğer"
+                pd_results = calculate_pd_damage_res(s_inputs)
+                gross_bi_days, net_bi_days_final = calculate_bi_downtime_res(pd_results["pml_ratio"], s_inputs)
+                tarife_yapi_turu = "Diğer"
+
             elif s_inputs.tesis_tipi == tr("ges"):
                 p_ges = s_inputs.ges_params
                 if "Tracker" in p_ges.panel_montaj_tipi: triggered_rules.append("TRACKER_RISKI")
                 if "Eğimli Arazi" in p_ges.arazi_topografyasi: triggered_rules.append("EGIM_RISKI")
                 if "Merkezi İnverter" in p_ges.inverter_mimarisi: triggered_rules.append("MERKEZI_INVERTER_RISKI")
-                pd_results = calculate_pd_damage_ges(s_inputs); gross_bi_days, net_bi_days_final = calculate_bi_downtime_ges(pd_results["pml_ratio"], s_inputs); tarife_yapi_turu = "Diğer"
+                pd_results = calculate_pd_damage_ges(s_inputs)
+                gross_bi_days, net_bi_days_final = calculate_bi_downtime_ges(pd_results["pml_ratio"], s_inputs)
+                tarife_yapi_turu = "Diğer"
+
             elif s_inputs.tesis_tipi == tr("hes"):
                 p_hes = s_inputs.hes_params
                 if "1990 öncesi" in p_hes.tesis_yili: triggered_rules.append("ESKI_TASARIM_KODU")
                 if "Toprak / Kaya Dolgu" in p_hes.baraj_tipi: triggered_rules.append("DOLGU_BARAJ_RISKI")
                 if "Bitişik" in p_hes.santral_konumu: triggered_rules.append("HIZALANMA_RISKI")
-                pd_results = calculate_pd_damage_hes(s_inputs); gross_bi_days, net_bi_days_final = calculate_bi_downtime_hes(pd_results["pml_ratio"], s_inputs); tarife_yapi_turu = "Diğer"
-            
+                pd_results = calculate_pd_damage_hes(s_inputs)
+                gross_bi_days, net_bi_days_final = calculate_bi_downtime_hes(pd_results["pml_ratio"], s_inputs)
+                tarife_yapi_turu = "Diğer"
+
             st.header(tr("ai_pre_analysis_header"))
             with st.spinner("AI Teknik Underwriter'ı senaryoyu değerlendiriyor..."):
                 assessment_report = generate_technical_assessment(s_inputs, triggered_rules)
                 st.markdown(assessment_report, unsafe_allow_html=True)
-            
+
             pd_damage_amount = pd_results["damage_amount"]
             pd_ratio = pd_results["pml_ratio"]
             bi_damage_amount = (s_inputs.yillik_brut_kar / 365.0) * net_bi_days_final if s_inputs.yillik_brut_kar > 0 else 0
-            
+
             st.header(tr("results_header"))
             m1, m2, m3 = st.columns(3)
             m1.metric("Beklenen PD Hasar Tutarı", money(pd_damage_amount), f"PML: {pd_ratio:.2%}")
@@ -711,54 +755,88 @@ def main():
                 df_det["Hasar Oranı"] = [f"{v:.2%}" for v in details["ratios"].values()]
                 st.dataframe(df_det.style.format({"PD Hasarı (₺)": money}), use_container_width=True)
 
-            # --- ŞEFFAFLIK BÖLÜMÜ ---
+            # ŞEFFAFLIK BÖLÜMÜ
             if s_inputs.tesis_tipi == tr("endustriyel_tesis") and st.session_state.ai_calibration_results:
                 st.markdown("---")
                 st.subheader("🧠 AI Kalibrasyon Gerekçeleri ve Parametreler")
                 calib = st.session_state.ai_calibration_results
                 meta = calib.get("meta", {})
-                
+
                 st.markdown("##### AI Tarafından Yapılan Ana Varsayımlar")
                 assumptions = meta.get("assumptions", ["Varsayım bulunamadı."])
                 for assumption in assumptions:
                     st.info(f"ℹ️ {assumption}")
-                    
+
                 st.markdown("##### Analizde Kullanılan Dayanak ve Referanslar")
                 notes = meta.get("notes", "Referans bulunamadı.")
                 st.caption(f"📜 {notes}")
-                
+                if meta.get("search_tool") == "enabled":
+                    st.caption("🔎 Web araştırması: **AKTİF**")
+                else:
+                    st.caption("🔎 Web araştırması: **PASİF (heuristik)**")
+
                 st.markdown("##### Atanan Sayısal Kalibrasyon Parametreleri")
                 params_data = []
                 pd_factors = calib.get("pd_factor_suggestion", {})
                 bi_calib = calib.get("bi_calibration", {})
-                
-                for key, value in pd_factors.items(): params_data.append({"Grup": "PD Çarpanları", "Parametre": key, "Değer": value})
-                for key, value in bi_calib.items(): params_data.append({"Grup": "BI Kalibrasyonu", "Parametre": key, "Değer": value})
-                    
+
+                for key, value in pd_factors.items():
+                    params_data.append({"Grup": "PD Çarpanları", "Parametre": key, "Değer": value})
+                for key, value in bi_calib.items():
+                    params_data.append({"Grup": "BI Kalibrasyonu", "Parametre": key, "Değer": value})
+
                 if params_data:
                     df_params = pd.DataFrame(params_data)
                     st.table(df_params.style.format({"Değer": "{:.2f}"}))
                 else:
                     st.warning("Sayısal parametreler AI tarafından üretilemedi.")
-            # --- ŞEFFAFLIK BÖLÜMÜ SONU ---
-            
+
             st.markdown("---")
             st.header(tr("analysis_header"))
-            # ... (Poliçe analizi bölümü değişmedi) ...
-            koas_opts, muaf_opts = get_allowed_options(s_inputs.si_pd); results = []
+
+            koas_opts, muaf_opts = get_allowed_options(s_inputs.si_pd)
+            results = []
             for koas in koas_opts:
                 for muaf in muaf_opts:
-                    prim_pd = calculate_premium(s_inputs.si_pd, tarife_yapi_turu, s_inputs.rg, koas, muaf); prim_bi = calculate_premium(s_inputs.yillik_brut_kar, tarife_yapi_turu, s_inputs.rg, koas, muaf, is_bi=True); toplam_prim = prim_pd + prim_bi
-                    pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf); total_payout = pd_claim["net_tazminat"] + bi_damage_amount; retained_risk = (pd_damage_amount + bi_damage_amount) - total_payout
+                    prim_pd = calculate_premium(s_inputs.si_pd, tarife_yapi_turu, s_inputs.rg, koas, muaf)
+                    prim_bi = calculate_premium(s_inputs.yillik_brut_kar, tarife_yapi_turu, s_inputs.rg, koas, muaf, is_bi=True)
+                    toplam_prim = prim_pd + prim_bi
+
+                    pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf)
+                    total_payout = pd_claim["net_tazminat"] + bi_damage_amount
+                    retained_risk = (pd_damage_amount + bi_damage_amount) - total_payout
                     verimlilik_skoru = (total_payout / toplam_prim if toplam_prim > 0 else 0) - (retained_risk / s_inputs.si_pd if s_inputs.si_pd > 0 else 0)
-                    results.append({"Poliçe Yapısı": f"{koas} / {muaf}%", "Yıllık Toplam Prim": toplam_prim, "Toplam Net Tazminat": total_payout, "Sigortalıda Kalan Risk": retained_risk, "Verimlilik Skoru": verimlilik_skoru})
+
+                    results.append({
+                        "Poliçe Yapısı": f"{koas} / {muaf}%",
+                        "Yıllık Toplam Prim": toplam_prim,
+                        "Toplam Net Tazminat": total_payout,
+                        "Sigortalıda Kalan Risk": retained_risk,
+                        "Verimlilik Skoru": verimlilik_skoru
+                    })
+
             df = pd.DataFrame(results).sort_values("Verimlilik Skoru", ascending=False).reset_index(drop=True)
             tab1, tab2 = st.tabs(["📈 Tablo Analizi", "📊 Görsel Analiz"])
-            with tab1: st.dataframe(df.style.format({"Yıllık Toplam Prim": money, "Toplam Net Tazminat": money, "Sigortalıda Kalan Risk": money, "Verimlilik Skoru": "{:.2f}"}), use_container_width=True)
+            with tab1:
+                st.dataframe(
+                    df.style.format({
+                        "Yıllık Toplam Prim": money,
+                        "Toplam Net Tazminat": money,
+                        "Sigortalıda Kalan Risk": money,
+                        "Verimlilik Skoru": "{:.2f}"
+                    }),
+                    use_container_width=True
+                )
             with tab2:
-                fig = px.scatter(df, x="Yıllık Toplam Prim", y="Sigortalıda Kalan Risk", color="Verimlilik Skoru", color_continuous_scale=px.colors.sequential.Viridis, hover_data=["Poliçe Yapısı", "Toplam Net Tazminat", "Verimlilik Skoru"], title="Poliçe Alternatifleri Maliyet-Risk Analizi")
-                fig.update_layout(xaxis_title="Yıllık Toplam Prim", yaxis_title="Hasarda Şirketinizde Kalacak Risk", coloraxis_colorbar_title_text = 'Verimlilik'); st.plotly_chart(fig, use_container_width=True)
-        
+                fig = px.scatter(
+                    df, x="Yıllık Toplam Prim", y="Sigortalıda Kalan Risk",
+                    color="Verimlilik Skoru", color_continuous_scale=px.colors.sequential.Viridis,
+                    hover_data=["Poliçe Yapısı", "Toplam Net Tazminat", "Verimlilik Skoru"],
+                    title="Poliçe Alternatifleri Maliyet-Risk Analizi"
+                )
+                fig.update_layout(xaxis_title="Yıllık Toplam Prim", yaxis_title="Hasarda Şirketinizde Kalacak Risk", coloraxis_colorbar_title_text='Verimlilik')
+                st.plotly_chart(fig, use_container_width=True)
+
         except Exception as e:
             st.error(f"Analiz sırasında bir hata oluştu: {e}")
             st.session_state.errors.append(f"Analiz Hatası: {str(e)}\n{traceback.format_exc()}")
