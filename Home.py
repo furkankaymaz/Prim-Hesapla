@@ -3,48 +3,49 @@
 """
 TariffEQ v6.3 – Hibrit Zekâ Motoru (Endüstriyel) • Tek Dosya Çalışan Uygulama
 Koşullar:
-- Python 3.10+
-- pip install streamlit google-generativeai pandas matplotlib
+- Python 3.9+ (3.10 da olur)
+- pip install streamlit google-generativeai pandas
 
 Çalıştırma:
   streamlit run app.py
 
 API Anahtarı:
 - Aşağıdakilerden biri olmalı: st.secrets["GEMINI_API_KEY"] veya ortam değişkeni GEMINI_API_KEY/GOOGLE_API_KEY
-- İsterseniz sol kenar çubuktan da (güvenli değilse) geçici olarak girebilirsiniz.
+- İsterseniz sol kenar çubuktan da (geçici) girebilirsiniz.
 """
 
 from __future__ import annotations
 import os, json
-from types import SimpleNamespace
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 
-# --- Gemini -------------------------------------------------------------------
-try:
-    import google.generativeai as genai
-except Exception as e:
-    st.stop()  # Kullanıcıya net bir hata verelim
-    raise
+# --- Yardımcı sabitler --------------------------------------------------------
+_DEF_ENUM = ["Düşük", "Orta", "Yüksek"]
+_DEF_SPLIT_INDUSTRIAL = {"bina": 0.40, "makine": 0.40, "elektronik": 0.06, "stok": 0.14}
 
-def _get_gemini_api_key() -> str | None:
+def _clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, float(x)))
+
+def _enum(v: str) -> str:
+    return v if v in _DEF_ENUM else "Orta"
+
+def _get_gemini_api_key() -> Optional[str]:
     key = None
     try:
         key = st.secrets.get("GEMINI_API_KEY")  # type: ignore[attr-defined]
     except Exception:
         pass
     key = key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    # İsteğe bağlı: UI üzerinden geçici giriş
     if not key:
         ui_key = st.session_state.get("_ui_key")
         if ui_key:
             key = ui_key
     return key
 
+# --- Prompt (AI Analist) ------------------------------------------------------
 AI_ANALYST_SYSTEM_PROMPT = r"""
 SİSTEM MESAJI — TariffEQ v6.3 • AI ANALİST (Deprem Kaynaklı Hasar Kalibrasyonu + Araştırma) — TEK PARÇA
 (Doğrudan koda yapıştır; başka prompta atıf yok)
@@ -149,36 +150,26 @@ D) ÜRETİM DİSİPLİNİ
 }
 """
 
-# --- Yardımcılar --------------------------------------------------------------
-_DEF_ENUM = ["Düşük", "Orta", "Yüksek"]
-_DEF_SPLIT_INDUSTRIAL = {"bina": 0.40, "makine": 0.40, "elektronik": 0.06, "stok": 0.14}
-
-def _clamp(x: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, float(x)))
-
-def _enum(v: str) -> str:
-    return v if v in _DEF_ENUM else "Orta"
-
-# --- Basit veri modelleri -----------------------------------------------------
+# --- Veri modelleri -----------------------------------------------------------
 @dataclass
 class IndustrialParams:
     faaliyet_tanimi: str = ""
     bi_gun_muafiyeti: int = 21
-    zemin_sinifi: str | None = None
-    yapi_turu: str | None = None
-    yonetmelik_donemi: str | None = None
-    kat_sayisi: int | None = None
-    yakin_cevre: str | None = None
-    yumusak_kat_riski: str | None = None
-    YOKE_durumu: str | None = None
-    isp_varligi: str | None = None
-    alternatif_tesis: str | None = None
-    bitmis_urun_stogu: int | None = 0
+    zemin_sinifi: Optional[str] = None
+    yapi_turu: Optional[str] = None
+    yonetmelik_donemi: Optional[str] = None
+    kat_sayisi: Optional[int] = None
+    yakin_cevre: Optional[str] = None
+    yumusak_kat_riski: Optional[str] = None
+    YOKE_durumu: Optional[str] = None
+    isp_varligi: Optional[str] = None
+    alternatif_tesis: Optional[str] = None
+    bitmis_urun_stogu: Optional[int] = 0
     # Granüler SI (opsiyonel)
-    pd_bina_sum: int | None = 0
-    pd_makine_sum: int | None = 0
-    pd_elektronik_sum: int | None = 0
-    pd_stok_sum: int | None = 0
+    pd_bina_sum: Optional[int] = 0
+    pd_makine_sum: Optional[int] = 0
+    pd_elektronik_sum: Optional[int] = 0
+    pd_stok_sum: Optional[int] = 0
 
 @dataclass
 class SessionInputs:
@@ -216,6 +207,11 @@ def get_ai_calibration_full_industrial(s: SessionInputs) -> Dict:
     key = _get_gemini_api_key()
     if not key:
         raise RuntimeError("Gemini API anahtarı bulunamadı. Soldaki 'API Anahtarı' alanına girin veya ortam/secrets ayarlayın.")
+    # Import'u burada yapıyoruz ki paket yoksa okunaklı uyarı gösterelim
+    try:
+        import google.generativeai as genai  # type: ignore
+    except ModuleNotFoundError:
+        raise RuntimeError("google-generativeai paketi kurulu değil. Kurulum: pip install google-generativeai")
     genai.configure(api_key=key)
     model = genai.GenerativeModel(
         model_name="gemini-1.5-flash",
@@ -231,7 +227,8 @@ def get_ai_calibration_full_industrial(s: SessionInputs) -> Dict:
         calib = json.loads(resp.text)
     except Exception as e:
         raise ValueError(f"Gemini JSON ayrıştırılamadı: {e}\nYanıt: {resp.text[:500]}")
-    # Şema ve bant kısıtları
+
+    # Şema & band kısıtları
     r = calib.get("pd_base_loss_ratio_suggestion", {}) or {}
     f = calib.get("pd_factor_suggestion", {}) or {}
     b = calib.get("bi_calibration", {}) or {}
@@ -252,6 +249,7 @@ def get_ai_calibration_full_industrial(s: SessionInputs) -> Dict:
     calib["pd_base_loss_ratio_suggestion"] = r
     calib["pd_factor_suggestion"] = f
     calib["bi_calibration"] = b
+
     st.session_state["_v63_calib_industrial"] = calib
     st.session_state["_v63_payload"] = payload
     return calib
@@ -381,11 +379,10 @@ def _build_session_from_ui() -> SessionInputs:
         azami_tazminat_suresi=int(azami_tazminat_suresi),
         industrial_params=ip,
     )
-    st.session_state["s_inputs"] = s  # eski imzaları kullanan fonksiyonlar için
+    st.session_state["s_inputs"] = s
     return s
 
 def _coinsurance_table(pd_tl: int, bi_net_days: int, daily_gp: float) -> pd.DataFrame:
-    # Basit seçenekler: koasürans (sigortacı toplam ödeme payı) ve PD muafiyet yüzdesi
     coins = [1.00, 0.90, 0.80, 0.70]
     pd_deduct_pcts = [0.00, 0.01, 0.02, 0.05]
     rows = []
@@ -415,6 +412,7 @@ if analyze:
         calib = get_ai_calibration_full_industrial(s)
         with st.expander("AI Kalibrasyon JSON (v6.3)"):
             st.json(calib)
+
         pd_res = calculate_pd_damage_industrial(s)
         pd_tl = pd_res["damage_amount"]
         pml_ratio = pd_res["pml_ratio"]
@@ -443,13 +441,8 @@ if analyze:
         df_opts = _coinsurance_table(pd_tl, bi_net_days, daily_gp)
         st.dataframe(df_opts, use_container_width=True)
 
-        # Scatter (Matplotlib, tek renk, tek eksen)
-        fig = plt.figure()
-        plt.scatter(df_opts["PD Muafiyet (TL)"], df_opts["Net Ödenecek Tazminat (TL)"])
-        plt.title("Muafiyet (TL) vs Net Ödenecek Tazminat (TL)")
-        plt.xlabel("PD Muafiyet (TL)")
-        plt.ylabel("Net Ödenecek Tazminat (TL)")
-        st.pyplot(fig)
+        st.markdown("#### Muafiyet (TL) – Net Ödenecek Tazminat (TL) Dağılımı")
+        st.scatter_chart(df_opts, x="PD Muafiyet (TL)", y="Net Ödenecek Tazminat (TL)")
 
         st.markdown("#### Yorum (Otomatik)")
         st.write(
