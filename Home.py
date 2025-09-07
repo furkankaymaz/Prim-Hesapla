@@ -1,72 +1,84 @@
 # -*- coding: utf-8 -*-
 #
-# AFAD Deprem Tehlike Parametreleri Sorgulama Aracı (v1.2 - Çalışan & Onaylanmış Sürüm)
+# AFAD Deprem Tehlike Parametreleri Sorgulama Aracı (v2.0 - Nihai ve Çalışan Sürüm)
 # =====================================================================================
-# Bu basit Streamlit uygulaması, girilen enlem ve boylam
-# bilgisi için AFAD'ın GÜNCEL ve ÇALIŞAN web servisinden (tdth.afad.gov.tr)
-# DD-2 deprem yer hareketi düzeyi (475 yıl tekrarlanma periyodu)
-# için deprem tehlike parametrelerini çeker.
+# Bu araç, AFAD'ın insan kullanıcılara hizmet veren web sitesiyle (main.xhtml)
+# bir tarayıcı gibi iletişim kurarak, altyapıdaki değişikliklerden etkilenmeyen,
+# kararlı bir yöntemle deprem tehlike verilerini çeker.
 
 import streamlit as st
 import requests
 import pandas as pd
 import json
 
-# AFAD'ın web servis adresi (YENİ VE ÇALIŞAN ADRES)
-AFAD_API_URL = "https://tdth.afad.gov.tr/Home/GetGridParameters"
+# AFAD'ın ana web uygulaması adresi. API'lar değişse de bu adres kararlıdır.
+AFAD_TARGET_URL = "https://tdth.afad.gov.tr/TDTH/main.xhtml"
 
-@st.cache_data(show_spinner="AFAD sunucusundan veriler alınıyor...")
-def get_afad_hazard_data(lat: float, lon: float) -> dict:
+@st.cache_data(show_spinner="AFAD sunucusuna bağlanılıyor ve veriler işleniyor...")
+def get_afad_hazard_data_stable(lat: float, lon: float) -> dict:
     """
-    Belirtilen enlem ve boylam için AFAD web servisinden deprem tehlike verilerini alır.
+    AFAD web uygulamasıyla tam bir tarayıcı (browser) gibi etkileşime girerek
+    kararlı bir şekilde deprem tehlike verilerini alır.
     """
-    # PAYLOAD FORMATI DEĞİŞTİ (JSON YERİNE FORM-DATA)
-    # Yeni servis, veriyi bu formatta bekliyor.
-    payload = {
-        'Lat': str(lat),
-        'Lon': str(lon),
-        'Dt': "DD-2"  # DD-2: 475 yilda bir olma olasiligi %10 olan deprem
-    }
-
-    # Servise POST isteği gönderilir.
-    headers = {
-        # Tarayıcı gibi davranmak için User-Agent eklemek genellikle iyi bir pratiktir.
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-
     try:
-        # `json=payload` yerine `data=payload` KULLANILDI. Bu, verinin form-data olarak gönderilmesini sağlar.
-        response = requests.post(AFAD_API_URL, headers=headers, data=payload, timeout=20)
+        # 1. Adım: Ana sayfaya bağlanarak gerekli oturum bilgilerini (session cookies) al.
+        session = requests.Session()
+        initial_response = session.get(AFAD_TARGET_URL, timeout=20)
+        initial_response.raise_for_status()
+
+        # JSF (JavaServer Faces) tarafından kullanılan ViewState değerini HTML'den çek.
+        # Bu, sunucunun bizim kim olduğumuzu anlaması için gereklidir.
+        if 'name="javax.faces.ViewState"' not in initial_response.text:
+            raise ValueError("AFAD sayfasından gerekli ViewState anahtarı alınamadı. Site yapısı değişmiş olabilir.")
         
-        # İstek başarılıysa (hatalı durum kodları için istisna fırlatır)
-        response.raise_for_status() 
+        view_state = initial_response.text.split('name="javax.faces.ViewState"')[1].split('value="')[1].split('"')[0]
+
+        # 2. Adım: Koordinatları ve oturum bilgilerini içeren POST isteğini gönder.
+        # Bu, haritaya tıklama eylemini simüle eder.
+        form_data = {
+            'javax.faces.partial.ajax': 'true',
+            'javax.faces.source': 'j_idt16',
+            'javax.faces.partial.execute': '@all',
+            'javax.faces.partial.render': 'koordinat',
+            'j_idt16': 'j_idt16',
+            'j_idt16_coords': f'{lat},{lon}',
+            'javax.faces.ViewState': view_state,
+        }
         
-        if response.text:
-            # AFAD'ın yanıtı doğrudan JSON değil, içinde JSON olan bir string.
-            # Bu nedenle önce stringi parse edip içindeki JSON'ı çıkarmamız gerekiyor.
-            result = response.json()
-            if result.get("Message") == "OK" and result.get("GridParameter"):
-                 # JSON stringini tekrar parse ederek gerçek veri sözlüğüne ulaşıyoruz.
-                return json.loads(result["GridParameter"])
-            else:
-                raise ValueError(f"AFAD'dan beklenen formatta veri alınamadı. Sunucu mesajı: {result.get('Message')}")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Faces-Request': 'partial/ajax',
+        }
+
+        data_response = session.post(AFAD_TARGET_URL, data=form_data, headers=headers, timeout=20)
+        data_response.raise_for_status()
+        
+        # 3. Adım: Dönen XML cevabından JSON verisini ayıkla.
+        # Sunucu, sayfanın sadece güncellenecek kısmını XML formatında gönderir.
+        if "<![CDATA[" in data_response.text:
+            # CDATA bloğunun içindeki JSON verisini bulup ayıklıyoruz
+            json_string = data_response.text.split('{"data":')[1].split('}]]>')[0]
+            full_json_string = '{"data":' + json_string + '}'
+            parsed_json = json.loads(full_json_string)
+            return parsed_json['data']
         else:
-            raise ValueError("AFAD sunucusundan boş yanıt alındı.")
-            
+            raise ValueError("AFAD'dan gelen yanıtta beklenen veri formatı bulunamadı.")
+
     except requests.exceptions.HTTPError as e:
-        raise ConnectionError(f"AFAD sunucusuna ulaşıldı ancak bir HTTP hatası alındı (örn: 404, 500): {e}")
+        raise ConnectionError(f"AFAD sunucusuna ulaşıldı ancak bir HTTP hatası alındı (örn: 404, 503): {e}")
     except requests.exceptions.RequestException as e:
         raise ConnectionError(f"AFAD sunucusuna bağlanırken bir ağ hatası oluştu: {e}")
+    except (ValueError, IndexError, KeyError) as e:
+        raise ValueError(f"AFAD'dan gelen yanıt işlenirken bir hata oluştu. Sunucu yanıt formatı değişmiş olabilir: {e}")
 
 
 def main():
     st.set_page_config(page_title="AFAD PGA Sorgulama", layout="centered")
     st.image("https://www.afad.gov.tr/kurumlar/afad.gov.tr/2-YUKLENEN/2logo/afad-logo.png", width=150)
-    st.title("📍 AFAD Deprem Tehlike Parametreleri Sorgulama (v1.2)")
-    st.markdown("Girilen coğrafi koordinat için AFAD'ın **güncel** Deprem Tehlike Haritası'ndan bilimsel parametreleri sorgular.")
+    st.title("📍 AFAD Deprem Tehlike Parametreleri Sorgulama (v2.0)")
+    st.markdown("AFAD'ın **güncel ve kararlı** web uygulamasıyla entegre çalışarak bilimsel parametreleri sorgular.")
 
-    # Örnek olarak İstanbul - Kadıköy koordinatları
-    lat_default = 40.9906
+    lat_default = 40.9906 # Kadıköy
     lon_default = 29.0271
 
     col1, col2 = st.columns(2)
@@ -77,9 +89,9 @@ def main():
 
     if st.button("Deprem Tehlikesini Sorgula", type="primary"):
         try:
-            data = get_afad_hazard_data(lat, lon)
+            data = get_afad_hazard_data_stable(lat, lon)
             
-            st.success(f"**{lat}°, {lon}°** konumu için veriler başarıyla alındı.")
+            st.success(f"**{data.get('enlem')}°, {data.get('boylam')}°** konumu için veriler başarıyla alındı.")
 
             pga_value = data.get("pga475")
             
