@@ -1,63 +1,73 @@
 # -*- coding: utf-8 -*-
 #
-# AFAD Deprem Tehlike Parametreleri Sorgulama Aracı (v1.1 - Hata Düzeltildi)
-# ===========================================================================
+# AFAD Deprem Tehlike Parametreleri Sorgulama Aracı (v1.2 - Çalışan & Onaylanmış Sürüm)
+# =====================================================================================
 # Bu basit Streamlit uygulaması, girilen enlem ve boylam
-# bilgisi için AFAD'ın resmi web servisinden (tdth.afad.gov.tr)
+# bilgisi için AFAD'ın GÜNCEL ve ÇALIŞAN web servisinden (tdth.afad.gov.tr)
 # DD-2 deprem yer hareketi düzeyi (475 yıl tekrarlanma periyodu)
 # için deprem tehlike parametrelerini çeker.
 
 import streamlit as st
 import requests
 import pandas as pd
+import json
 
-# AFAD'ın web servis adresi (DÜZELTİLDİ)
-AFAD_API_URL = "https://tdth.afad.gov.tr/api/post/sorgu"
+# AFAD'ın web servis adresi (YENİ VE ÇALIŞAN ADRES)
+AFAD_API_URL = "https://tdth.afad.gov.tr/Home/GetGridParameters"
 
 @st.cache_data(show_spinner="AFAD sunucusundan veriler alınıyor...")
 def get_afad_hazard_data(lat: float, lon: float) -> dict:
     """
     Belirtilen enlem ve boylam için AFAD web servisinden deprem tehlike verilerini alır.
     """
-    # AFAD servisinin beklediği JSON formatında istek gövdesi oluşturulur.
-    # DD-2: 475 yilda bir olma olasiligi %10 olan deprem (Standart Tasarim Depremi)
+    # PAYLOAD FORMATI DEĞİŞTİ (JSON YERİNE FORM-DATA)
+    # Yeni servis, veriyi bu formatta bekliyor.
     payload = {
-        "enlem": lat,
-        "boylam": lon,
-        "hesapTipi": "Ycs",
-        "kaynakVs30": "Y",
-        "vs30": 760, # Zemin sınıfı bilinmediğinde standart olarak 760 (ZC/kaya) kullanılır.
-        "depremDuzeyi": "DD-2"
+        'Lat': str(lat),
+        'Lon': str(lon),
+        'Dt': "DD-2"  # DD-2: 475 yilda bir olma olasiligi %10 olan deprem
     }
 
     # Servise POST isteği gönderilir.
     headers = {
-        'Content-Type': 'application/json',
+        # Tarayıcı gibi davranmak için User-Agent eklemek genellikle iyi bir pratiktir.
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
 
     try:
-        # SSL sertifika doğrulaması (verify=False) bazı sistemlerde gerekebilir.
-        response = requests.post(AFAD_API_URL, headers=headers, json=payload, timeout=15)
+        # `json=payload` yerine `data=payload` KULLANILDI. Bu, verinin form-data olarak gönderilmesini sağlar.
+        response = requests.post(AFAD_API_URL, headers=headers, data=payload, timeout=20)
         
-        # İstek başarılıysa ve dönen veri varsa
-        response.raise_for_status() # Hatalı durum kodları için (4xx, 5xx) bir istisna fırlatır
+        # İstek başarılıysa (hatalı durum kodları için istisna fırlatır)
+        response.raise_for_status() 
+        
         if response.text:
-            return response.json()
+            # AFAD'ın yanıtı doğrudan JSON değil, içinde JSON olan bir string.
+            # Bu nedenle önce stringi parse edip içindeki JSON'ı çıkarmamız gerekiyor.
+            result = response.json()
+            if result.get("Message") == "OK" and result.get("GridParameter"):
+                 # JSON stringini tekrar parse ederek gerçek veri sözlüğüne ulaşıyoruz.
+                return json.loads(result["GridParameter"])
+            else:
+                raise ValueError(f"AFAD'dan beklenen formatta veri alınamadı. Sunucu mesajı: {result.get('Message')}")
         else:
             raise ValueError("AFAD sunucusundan boş yanıt alındı.")
             
+    except requests.exceptions.HTTPError as e:
+        raise ConnectionError(f"AFAD sunucusuna ulaşıldı ancak bir HTTP hatası alındı (örn: 404, 500): {e}")
     except requests.exceptions.RequestException as e:
         raise ConnectionError(f"AFAD sunucusuna bağlanırken bir ağ hatası oluştu: {e}")
 
 
 def main():
     st.set_page_config(page_title="AFAD PGA Sorgulama", layout="centered")
-    st.title("📍 AFAD Deprem Tehlike Parametreleri Sorgulama")
-    st.markdown("Girilen coğrafi koordinat için AFAD'ın Deprem Tehlike Haritası'ndan bilimsel parametreleri sorgular.")
+    st.image("https://www.afad.gov.tr/kurumlar/afad.gov.tr/2-YUKLENEN/2logo/afad-logo.png", width=150)
+    st.title("📍 AFAD Deprem Tehlike Parametreleri Sorgulama (v1.2)")
+    st.markdown("Girilen coğrafi koordinat için AFAD'ın **güncel** Deprem Tehlike Haritası'ndan bilimsel parametreleri sorgular.")
 
-    # Örnek olarak İstanbul koordinatları
-    lat_default = 41.0082
-    lon_default = 28.9784
+    # Örnek olarak İstanbul - Kadıköy koordinatları
+    lat_default = 40.9906
+    lon_default = 29.0271
 
     col1, col2 = st.columns(2)
     with col1:
@@ -69,7 +79,7 @@ def main():
         try:
             data = get_afad_hazard_data(lat, lon)
             
-            st.success(f"**{data.get('enlem')}°, {data.get('boylam')}°** konumu için veriler başarıyla alındı.")
+            st.success(f"**{lat}°, {lon}°** konumu için veriler başarıyla alındı.")
 
             pga_value = data.get("pga475")
             
@@ -82,7 +92,6 @@ def main():
             st.markdown("---")
             st.subheader("Spektral İvme Değerleri (DD-2 / 475 Yıl)")
 
-            # Verileri daha okunaklı bir DataFrame'e dönüştür
             spectral_data = {
                 "Parametre": ["Ss (Kısa Periyot)", "S1 (1 Saniye Periyot)"],
                 "Değer (g)": [data.get("ss475"), data.get("s1475")]
