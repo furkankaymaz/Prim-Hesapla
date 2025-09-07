@@ -7,15 +7,16 @@
 # mantığı ile ticari/sınai rizikolar için profesyonel seviyde bir deprem
 # hasar analizi sunar.
 #
-# GÜNCEL REVİZYON NOTLARI (Ağustos 2025 - v3.1):
-# 1. Hata Giderimi: NameError hatası düzeltildi.
-# 2. Kullanıcı Dostu Girdi: Teknik 'Yapısal Düzensizlik' sorusu kaldırıldı, yerine
-#    anlaşılır 'Yumuşak Kat Riski' sorusu eklendi.
-# 3. Sektör Standardizasyonu: BI Muafiyeti, Türkiye uygulamalarına uygun
-#    olarak standart seçeneklere dönüştürüldü.
-# 4. Arayüz Optimizasyonu: Girdiler, PD ve BI olarak mantıksal gruplarına
-#    göre yeniden düzenlendi. 'Faaliyet Tanımı' alanı, AI'a en iyi bilgiyi
-#    sağlayacak şekilde yönlendirici örneklerle zenginleştirildi.
+# GÜNCEL REVİZYON NOTLARI (Eylül 2025 - v3.2):
+# 1. İki Aşamalı AI Raporlama: AI teknik değerlendirmesi, (1) Yapısal Riskler ve
+#    (2) Faaliyete Özgü Sektörel Riskler olarak ikiye ayrıldı. Bu sayede çok
+#    daha detaylı ve isabetli bir analiz sunulmaktadır.
+# 2. Dinamik PD Modelleme: Bina/İçerik hasar oranı (örn: 40/60) artık sabit değil.
+#    AI, faaliyet tanımına göre (AVM, Üretim, Lojistik vb.) en uygun sektörel
+#    profili belirleyerek hasar dağılımını dinamik olarak atamaktadır.
+# 3. Gelişmiş AI Promptları: AI'a "kıdemli hasar eksperi" rolü verilerek, faaliyet
+#    tanımındaki spesifik riskleri (kırılabilir stok, otopark, FFE, altyapı
+#    kesintileri) proaktif olarak tespit etmesi ve raporlaması sağlandı.
 
 import streamlit as st
 import pandas as pd
@@ -44,8 +45,15 @@ TARIFE_RATES = {"Betonarme": [3.13, 2.63, 2.38, 1.94, 1.38, 1.06, 0.75], "Diğer
 KOAS_FACTORS = {"80/20": 1.0, "75/25": 0.9375, "70/30": 0.875, "65/35": 0.8125, "60/40": 0.75, "55/45": 0.6875, "50/50": 0.625, "45/55": 0.5625, "40/60": 0.5, "90/10": 1.125, "100/0": 1.25}
 MUAFIYET_FACTORS = {2.0: 1.0, 3.0: 0.94, 4.0: 0.87, 5.0: 0.81, 10.0: 0.65, 1.5: 1.03, 1.0: 1.06, 0.5: 1.09, 0.1: 1.12}
 _DEPREM_ORAN = {1: 0.20, 2: 0.17, 3: 0.13, 4: 0.09, 5: 0.06, 6: 0.06, 7: 0.06}
+# YENİ (v3.2): Dinamik PD modellemesi için sektörel bina/içerik oranları
+BINA_ICERIK_ORANLARI = {
+    "Üretim Tesisi": (0.40, 0.60),
+    "Lojistik Depo": (0.50, 0.50),
+    "AVM / Otel / Ofis": (0.60, 0.40),
+    "Diğer / Varsayılan": (0.50, 0.50)
+}
 
-# --- ÇEVİRİ SÖZLÜĞÜ (YENİ PARAMETRELER EKLENDİ) ---
+# --- ÇEVİRİ SÖZLÜĞÜ ---
 T = {
     "title": {"TR": "TariffEQ – AI Destekli Risk Analizi", "EN": "TariffEQ – AI-Powered Risk Analysis"},
     "inputs_header": {"TR": "📊 1. Senaryo Girdileri", "EN": "📊 1. Scenario Inputs"},
@@ -80,29 +88,31 @@ def tr(key: str) -> str:
 def money(x: float) -> str:
     return f"{x:,.0f} ₺".replace(",", ".")
 
-# --- GİRDİ VE HESAPLAMA MODELLERİ (YENİ PARAMETRELER EKLENDİ) ---
+# --- GİRDİ VE HESAPLAMA MODELLERİ ---
 @dataclass
 class ScenarioInputs:
     si_pd: int = 250_000_000
     yillik_brut_kar: int = 100_000_000
     rg: int = 1
-    faaliyet_tanimi: str = "Adapazarı'nda nehir yatağına yakın bir alanda kurulu, 1995 yapımı, ilaç ve hassas kimyasallar üreten betonarme bir tesis. Üretim alanı tek katlı, bitişiğindeki 3 katlı idari binanın zemin katı otopark olarak kullanılıyor."
+    faaliyet_tanimi: str = "Lüks bir AVM. Alt katlarda otopark, orta katlarda çeşitli (giyim, mücevherat, ev tekstili, elektronik) mağazalar, en üst katta ise yemek alanları (restoranlar) ve çok salonlu bir sinema kompleksi bulunuyor. Geniş cam cephelere sahip."
     yapi_turu: str = "Betonarme"
-    yonetmelik_donemi: str = "1998 öncesi (Eski Yönetmelik)"
-    kat_sayisi: str = "1-3 kat"
+    yonetmelik_donemi: str = "1998-2018 arası (Varsayılan)"
+    kat_sayisi: str = "4-7 kat"
     zemin_sinifi: str = "ZE"
-    yakin_cevre: str = "Nehir Yatağı / Göl Kenarı / Kıyı Şeridi"
+    yakin_cevre: str = "Ana Karada / Düz Ova"
     yumusak_kat_riski: str = "Evet"
     azami_tazminat_suresi: int = 365
     isp_varligi: str = "Var (Test Edilmiş)"
     alternatif_tesis: str = "Yok"
-    bitmis_urun_stogu: int = 30
+    bitmis_urun_stogu: int = 0
     bi_gun_muafiyeti: int = 30
+    # YENİ (v3.2): Bu parametreler artık AI tarafından atanacak
     icerik_hassasiyeti: str = "Orta"
     ffe_riski: str = "Orta"
     kritik_makine_bagimliligi: str = "Orta"
+    bina_icerik_profili: str = "Diğer / Varsayılan"
 
-# --- TEKNİK HESAPLAMA ÇEKİRDEĞİ (YENİ KURALLAR EKLENDİ) ---
+# --- TEKNİK HESAPLAMA ÇEKİRDEĞİ (REVİZE EDİLDİ v3.2) ---
 def calculate_pd_damage(s: ScenarioInputs) -> Dict[str, float]:
     FACTORS = {
         "yonetmelik": {"1998 öncesi": 1.25, "1998-2018": 1.00, "2018 sonrası": 0.80},
@@ -123,8 +133,10 @@ def calculate_pd_damage(s: ScenarioInputs) -> Dict[str, float]:
 
     bina_pd_ratio = min(0.60, max(0.01, base_bina_oran * bina_factor))
     
-    si_bina_varsayim = s.si_pd * 0.40
-    si_icerik_varsayim = s.si_pd * 0.60
+    # REVİZE EDİLDİ (v3.2): Bina/İçerik oranı artık AI tarafından belirlenen profile göre dinamik.
+    bina_oran, icerik_oran = BINA_ICERIK_ORANLARI.get(s.bina_icerik_profili, BINA_ICERIK_ORANLARI["Diğer / Varsayılan"])
+    si_bina_varsayim = s.si_pd * bina_oran
+    si_icerik_varsayim = s.si_pd * icerik_oran
     
     icerik_hassasiyet_carpan = {"Düşük": 0.6, "Orta": 0.8, "Yüksek": 1.0}.get(s.icerik_hassasiyeti, 0.8)
     icerik_pd_ratio = bina_pd_ratio * icerik_hassasiyet_carpan
@@ -149,6 +161,7 @@ def calculate_bi_downtime(pd_ratio: float, s: ScenarioInputs) -> Tuple[int, int]
     operational_factor *= FACTORS["alternatif_tesis"].get(s.alternatif_tesis, 1.0)
     gross_downtime = int(base_repair_days * operational_factor)
     
+    # Yüksek riskli bölgelerde altyapı gecikmesi eklenir
     if s.rg in [1, 2]: gross_downtime += 30
 
     net_downtime_before_indemnity = gross_downtime - s.bitmis_urun_stogu
@@ -170,60 +183,111 @@ def calculate_net_claim(si_pd: int, hasar_tutari: float, koas: str, muaf_pct: fl
     sirket_pay_orani = float(koas.split('/')[0]) / 100.0; net_tazminat = muafiyet_sonrasi_hasar * sirket_pay_orani
     sigortalida_kalan = hasar_tutari - net_tazminat
     return {"net_tazminat": net_tazminat, "sigortalida_kalan": sigortalida_kalan}
-# --- AI FONKSİYONLARI ---
+
+# --- AI FONKSİYONLARI (REVİZE EDİLDİ v3.2) ---
 @st.cache_data(show_spinner=False)
 def get_ai_driven_parameters(faaliyet_tanimi: str) -> Dict[str, str]:
-    default_params = {"icerik_hassasiyeti": "Orta", "ffe_riski": "Orta", "kritik_makine_bagimliligi": "Orta"}
+    default_params = {
+        "icerik_hassasiyeti": "Orta",
+        "ffe_riski": "Orta",
+        "kritik_makine_bagimliligi": "Orta",
+        "bina_icerik_profili": "Diğer / Varsayılan"
+    }
     if not _GEMINI_AVAILABLE: return default_params
+    
     prompt = f"""
-    Rolün: Kıdemli bir deprem risk mühendisi.
-    Görevin: Tesis tanımını analiz edip, 3 risk parametresini skorlamak.
-    Kısıtlar: Yanıtın SADECE JSON formatında olmalı.
-    Tesis Tanımı: "{faaliyet_tanimi}"
-    Önemli Notlar:
-    1. Modern bir yapı bile olsa, faaliyet türü (örn: lojistik, üretim) içindeki ekipman ve raf sistemleri nedeniyle 'içerik hassasiyeti' ve 'kritik makine bağımlılığı' yüksek olabilir. (Referans: Kahramanmaraş Depremleri Gözlemleri)
-    2. Eğer faaliyet "yarı iletken", "elektronik", "ilaç", "laboratuvar", "hassas optik" gibi ifadeler içeriyorsa, 'İçerik Hassasiyeti' ve 'Kritik Makine Bağımlılığı' parametrelerini tereddütsüz 'Yüksek' olarak ata. (Referans: Tayvan 1999, Japonya 2011 Depremleri)
-    Skor Tanımları:
-    - icerik_hassasiyeti: (Yüksek: Hassas elektronik, ilaç, kimyasallar, devrilebilecek yüksek raf sistemleri).
-    - ffe_riski: (Yüksek: Yoğun solvent, kimyasal, yanıcı gaz/toz, plastik hammadde).
-    - kritik_makine_bagimliligi: (Yüksek: Özel sipariş pres, fırın, reaktör, otomasyon hattı).
-    SADECE ŞU JSON'u DÖNDÜR: {{"icerik_hassasiyeti": "...", "ffe_riski": "...", "kritik_makine_bagimliligi": "..."}}
-    """
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash'); generation_config = {"temperature": 0.1, "top_p": 0.8, "response_mime_type": "application/json"}
-        response = model.generate_content(prompt, generation_config=generation_config); params = json.loads(response.text)
-        for key in default_params:
-            if params.get(key) not in ['Düşük', 'Orta', 'Yüksek']: params[key] = default_params[key]
-        return params
-    except Exception as e:
-        st.session_state.errors.append(f"AI Parametre Hatası: {str(e)}\n{traceback.format_exc()}"); return default_params
+    Rolün: Kıdemli bir risk mühendisi ve underwriter.
+    Görevin: Tesis tanımını analiz edip, 4 adet risk parametresini en uygun şekilde skorlamak.
+    Kısıtlar: Yanıtın SADECE JSON formatında olmalı. Başka hiçbir metin ekleme.
 
-@st.cache_data(show_spinner=False)
-def generate_technical_assessment(s: ScenarioInputs, triggered_rules: List[str]) -> str:
-    if not _GEMINI_AVAILABLE: return "AI servisi aktif değil."
-    prompt = f"""
-    Rolün: TariffEQ için çalışan uzman bir AI teknik underwriter'ı.
-    Görevin: Aşağıda sana iletilen 'Aktif Risk Faktörleri' listesinden en önemli 2 veya 3 tanesini seçerek, kullanıcı için görsel ve ikna edici bir "AI Teknik Risk Değerlendirmesi" oluşturmak.
-    Kesin Kurallar:
-    1. Çıktın SADECE Markdown formatında olacak. Başlık "### 🧠 AI Teknik Risk Değerlendirmesi" olacak.
-    2. Her faktör için ilgili bir emoji kullan (örn: 🧱, 💧, 🏭, 🔧).
-    3. Her faktörü "Tespit:" ve "Etki:" alt başlıklarıyla, kısa ve net cümlelerle açıkla.
-    4. "Tespit:" bölümünde, bu riski hangi kullanıcı girdisinden çıkardığını belirt.
-    5. "Etki:" bölümünde, bu riskin hasar beklentisini nasıl etkilediğini (örn: 'önemli ölçüde artırmaktadır') ve dayandığı referansı (örn: Kocaeli 1999) kısaca yaz.
-    6. Çıktının sonunda, tüm bu faktörlerin birleşimine dayanarak, PML beklentisi hakkında "Sonuçsal Beklenti:" başlığı altında kalitatif bir yorum yap.
-    7. ASLA spesifik bir PML oranı verme, sadece kalitatif etkiyi ve beklentiyi belirt.
-    KULLANICI GİRDİLERİ: Yapı Türü: {s.yapi_turu}, Yönetmelik: {s.yonetmelik_donemi}, Zemin: {s.zemin_sinifi}, Yakın Çevre: {s.yakin_cevre}, Faaliyet: {s.faaliyet_tanimi}, Yumuşak Kat: {s.yumusak_kat_riski}
-    SİSTEM TARAFINDAN TESPİT EDİLEN AKTİF RİSK FAKTÖRLERİ: {triggered_rules}
-    Lütfen bu bilgilerle Teknik Risk Değerlendirmesini oluştur.
+    Tesis Tanımı: "{faaliyet_tanimi}"
+
+    PARAMETRE TANIMLARI VE SEÇİM KRİTERLERİ:
+
+    1.  "icerik_hassasiyeti": Tesis içindeki mal ve ekipmanların sarsıntıya karşı ne kadar hassas olduğu.
+        - "Yüksek": İlaç, kimya, yarı iletken, laboratuvar. AVM içindeki mücevherat, elektronik, cam/porselen ürünler. Yüksek ve devrilmeye müsait raf sistemleri.
+        - "Orta": Genel imalat, tekstil, metal işleme, mobilya. AVM içindeki giyim mağazaları.
+        - "Düşük": Kaba inşaat malzemeleri, hurda metal, blok mermer.
+
+    2.  "ffe_riski": Deprem Sonrası Yangın (Fire Following Earthquake) riski.
+        - "Yüksek": Yoğun solvent, yanıcı kimyasallar, gaz hatları, plastik hammaddeler, toz patlaması riski olan (un, şeker) tesisler. AVM'deki restoran mutfakları, gaz hatları.
+        - "Orta": Ahşap işleme, kağıt/karton depolama, genel elektrik ve makine parkı.
+        - "Düşük": Yanıcı malzeme içermeyen depolar (örn: metal, taş).
+
+    3.  "kritik_makine_bagimliligi": Üretimin/faaliyetin, hasarlanması durumunda yerine konması zor, özel ekipmanlara bağımlılığı.
+        - "Yüksek": Özel sipariş üretim hattı (otomotiv), büyük presler, fırınlar, reaktörler. AVM'deki sinema projeksiyon/ses sistemleri, yürüyen merdivenler, merkezi iklimlendirme.
+        - "Orta": Standart CNC makineleri, tekstil makineleri, paketleme hatları.
+        - "Düşük": Jenerik ekipmanların kullanıldığı, makineye az bağımlı montaj veya depolama faaliyetleri.
+
+    4.  "bina_icerik_profili": Toplam sigorta bedelinin bina ve içerik arasında nasıl dağıldığına dair sektörel profil.
+        - "AVM / Otel / Ofis": Bina değeri genellikle içerikten yüksektir. (örn: 60/40)
+        - "Üretim Tesisi": Makine/ekipman değeri genellikle bina değerinden yüksektir. (örn: 40/60)
+        - "Lojistik Depo": Bina ve içindeki stok değeri genellikle yakındır. (örn: 50/50)
+        - "Diğer / Varsayılan": Tanım belirsiz ise kullanılır.
+
+    SADECE ŞU JSON FORMATINDA ÇIKTI ÜRET:
+    {{"icerik_hassasiyeti": "...", "ffe_riski": "...", "kritik_makine_bagimliligi": "...", "bina_icerik_profili": "..."}}
     """
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt, generation_config={"temperature": 0.2})
+        generation_config = {"temperature": 0.1, "top_p": 0.8, "response_mime_type": "application/json"}
+        response = model.generate_content(prompt, generation_config=generation_config)
+        params = json.loads(response.text)
+        # Gelen veriyi doğrula ve varsayılan değerleri ata
+        for key, valid_options in {
+            "icerik_hassasiyeti": ['Düşük', 'Orta', 'Yüksek'],
+            "ffe_riski": ['Düşük', 'Orta', 'Yüksek'],
+            "kritik_makine_bagimliligi": ['Düşük', 'Orta', 'Yüksek'],
+            "bina_icerik_profili": list(BINA_ICERIK_ORANLARI.keys())
+        }.items():
+            if params.get(key) not in valid_options:
+                params[key] = default_params[key]
+        return params
+    except Exception as e:
+        st.session_state.errors.append(f"AI Parametre Hatası: {str(e)}\n{traceback.format_exc()}")
+        return default_params
+
+@st.cache_data(show_spinner=False)
+def generate_comprehensive_assessment(s: ScenarioInputs, triggered_rules: List[str]) -> str: # YENİ FONKSİYON (v3.2)
+    if not _GEMINI_AVAILABLE: return "AI servisi aktif değil."
+    
+    prompt = f"""
+    Rolün: Dünya standartlarında bir deprem risk mühendisi ve kıdemli hasar eksperi. TariffEQ platformu için teknik bir rapor hazırlıyorsun.
+    Görevin: Sana verilen kullanıcı girdileri ve sistem tarafından tetiklenen risk faktörlerini kullanarak, iki ana bölümden oluşan detaylı bir risk değerlendirmesi yazmak.
+    
+    Kesin Kurallar:
+    1. Çıktın SADECE Markdown formatında olacak.
+    2. Raporun iki ana başlığı olacak: "### 🏛️ 1. Yapısal ve Çevresel Risk Değerlendirmesi" ve "### 🏭 2. Faaliyete Özgü Sektörel Risk Değerlendirmesi".
+    3. Her başlık altında, en önemli 2-3 risk faktörünü emoji kullanarak vurgula.
+    4. Her faktörü "Tespit:" ve "Etki:" alt başlıklarıyla, kısa ve net cümlelerle açıkla.
+    5. "Tespit:" bölümünde, bu riski hangi kullanıcı girdisinden çıkardığını belirt. (örn: Zemin Sınıfı: 'ZE', Faaliyet Tanımı: 'AVM' vb.)
+    6. "Etki:" bölümünde, bu riskin hasarı nasıl artıracağını ve potansiyel sonuçlarını (fiziksel, operasyonel) belirt. Varsa bilinen bir deprem referansı (Kocaeli 1999 vb.) ekle.
+    7. **Sektörel Değerlendirme Bölümünde (En Önemli Kısım):** Faaliyet tanımının içine dal.
+        - "AVM/Otel" görürsen: Geniş cam cephelerin kırılması, yürüyen merdivenlerin hasarı, lüks/kırılabilir stokların (mücevher, elektronik) devrilmesi, otoparktaki araçların üzerine düşebilecek tesisat (sprinkler boruları), sinema ekipmanlarının (projeksiyon, ses sistemi) hassasiyeti ve restoranlardaki gaz hatlarından kaynaklı FFE riskine odaklan.
+        - "Üretim" görürsen: Kritik makinelerin (pres, CNC) hassasiyetine, devrilebilecek yüksek raf sistemlerindeki stoklara, kimyasal sızıntı ve FFE riskine odaklan.
+        - "Lojistik" görürsen: Yüksek raf sistemlerinin devrilmesi (Pancaking etkisi), sprinkler patlaması sonucu stokların ıslanması ve yangın yüküne odaklan.
+    8. Raporun sonunda "###  sonuçsal Beklenti" başlığı altında genel bir değerlendirme ve PML (Potansiyel Maksimum Hasar) beklentisi hakkında kalitatif bir yorum yap (ASLA sayısal oran verme).
+
+    KULLANICI GİRDİLERİ:
+    - Faaliyet Tanımı: {s.faaliyet_tanimi}
+    - Yapı Türü: {s.yapi_turu}, Yönetmelik: {s.yonetmelik_donemi}, Kat Sayısı: {s.kat_sayisi}
+    - Zemin Sınıfı: {s.zemin_sinifi}, Yakın Çevre: {s.yakin_cevre}
+    - Yumuşak Kat Riski: {s.yumusak_kat_riski}
+
+    SİSTEM TARAFINDAN TESPİT EDİLEN AKTİF RİSK FAKTÖRLERİ: {triggered_rules}
+
+    Lütfen bu bilgilerle İki Aşamalı Teknik Risk Değerlendirmesini oluştur.
+    """
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt, generation_config={"temperature": 0.25})
         return response.text
     except Exception as e:
-        st.session_state.errors.append(f"AI Rapor Hatası: {str(e)}\n{traceback.format_exc()}"); return "AI Teknik Değerlendirme raporu oluşturulamadı."
+        st.session_state.errors.append(f"AI Rapor Hatası: {str(e)}\n{traceback.format_exc()}")
+        return "AI Teknik Değerlendirme raporu oluşturulamadı."
 
-# --- STREAMLIT UYGULAMASI (YENİLENMİŞ ARAYÜZ İLE) ---
+
+# --- STREAMLIT UYGULAMASI ---
 def main():
     st.set_page_config(page_title=tr("title"), layout="wide", page_icon="🏗️")
     if 'run_clicked' not in st.session_state: st.session_state.run_clicked = False
@@ -248,7 +312,7 @@ def main():
         s_inputs.yonetmelik_donemi = st.selectbox(tr("yonetmelik"), ["1998 öncesi (Eski Yönetmelik)", "1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)"], index=["1998 öncesi (Eski Yönetmelik)", "1998-2018 arası (Varsayılan)", "2018 sonrası (Yeni Yönetmelik)"].index(s_inputs.yonetmelik_donemi))
         s_inputs.kat_sayisi = st.selectbox(tr("kat_sayisi"), ["1-3 kat", "4-7 kat", "8+ kat"], index=["1-3 kat", "4-7 kat", "8+ kat"].index(s_inputs.kat_sayisi))
         s_inputs.zemin_sinifi = st.selectbox(tr("zemin"), ["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"], index=["ZE", "ZD", "ZC (Varsayılan)", "ZA/ZB (Kaya/Sıkı Zemin)"].index(s_inputs.zemin_sinifi))
-        s_inputs.yakin_cevre = st.selectbox(tr("yakın_cevre"), ["Nehir Yatağı / Göl Kenarı / Kıyı Şeridi", "Ana Karada / Düz Ova", "Dolgu Zemin Üzerinde"], index=["Nehir Yatağı / Göl Kenarı / Kıyı Şeridi", "Ana Karada / Düz Ova", "Dolgu Zemin Üzerinde"].index(s_inputs.yakin_cevre), help=tr("yakın_cevre_help"))
+        s_inputs.yakin_cevre = st.selectbox(tr("yakın_cevre"), ["Nehir Yatağı / Göl Kenarı / Kıyı Şeridi", "Ana Karada / Düz Ova", "Dolgu Zemin Üzerinde"], index=["Nehir Yatağı / Göl Kenarı / Kıyı Şeridi", "Ana Karada / Düz Ova", "Dolgu Zemin Üzerinde"].index(s_inputs.yakin_cevre))
         s_inputs.yumusak_kat_riski = st.selectbox(tr("yumusak_kat"), ["Hayır", "Evet"], index=["Hayır", "Evet"].index(s_inputs.yumusak_kat_riski), help=tr("yumusak_kat_help"))
         
     with col3:
@@ -271,22 +335,27 @@ def main():
         
         with st.spinner("AI, tesisinizi analiz ediyor ve risk parametrelerini atıyor..."):
             ai_params = get_ai_driven_parameters(s_inputs.faaliyet_tanimi)
-            s_inputs.icerik_hassasiyeti, s_inputs.ffe_riski, s_inputs.kritik_makine_bagimliligi = ai_params["icerik_hassasiyeti"], ai_params["ffe_riski"], ai_params["kritik_makine_bagimliligi"]
+            s_inputs.icerik_hassasiyeti = ai_params["icerik_hassasiyeti"]
+            s_inputs.ffe_riski = ai_params["ffe_riski"]
+            s_inputs.kritik_makine_bagimliligi = ai_params["kritik_makine_bagimliligi"]
+            s_inputs.bina_icerik_profili = ai_params["bina_icerik_profili"]
         
         triggered_rules = []
-        if s_inputs.yapi_turu == "Betonarme" and "1998 öncesi" in s_inputs.yonetmelik_donemi: triggered_rules.append("ESKI_PREFABRIK_RISKI")
-        if s_inputs.yapi_turu == "Çelik" and "1998 öncesi" in s_inputs.yonetmelik_donemi: triggered_rules.append("CELIK_KAYNAK_RISKI")
+        if s_inputs.yapi_turu == "Betonarme" and "1998 öncesi" in s_inputs.yonetmelik_donemi: triggered_rules.append("ESKI_YONETMELIK_BETONARME")
+        if s_inputs.yapi_turu == "Çelik" and "1998 öncesi" in s_inputs.yonetmelik_donemi: triggered_rules.append("ESKI_YONETMELIK_CELIK")
         if s_inputs.zemin_sinifi in ["ZD", "ZE"] and s_inputs.yakin_cevre != "Ana Karada / Düz Ova": triggered_rules.append("SIVILASMA_RISKI")
         if s_inputs.yumusak_kat_riski == "Evet": triggered_rules.append("YUMUSAK_KAT_RISKI")
         if s_inputs.icerik_hassasiyeti == 'Yüksek' or s_inputs.kritik_makine_bagimliligi == 'Yüksek': triggered_rules.append("SEKTOREL_HASSASIYET")
-        if s_inputs.rg in [1, 2]: triggered_rules.append("ALTYAPI_RISKI")
+        if s_inputs.rg in [1, 2]: triggered_rules.append("ALTYAPI_KESINTI_RISKI")
 
         st.header(tr("ai_pre_analysis_header"))
-        with st.spinner("AI Teknik Underwriter'ı senaryoyu değerlendiriyor..."):
-            assessment_report = generate_technical_assessment(s_inputs, triggered_rules)
+        with st.spinner("AI Teknik Underwriter'ı iki aşamalı senaryo değerlendirmesi yapıyor..."):
+            assessment_report = generate_comprehensive_assessment(s_inputs, triggered_rules)
             st.markdown(assessment_report, unsafe_allow_html=True)
             
-        pd_results = calculate_pd_damage(s_inputs); pd_damage_amount = pd_results["damage_amount"]; pd_ratio = pd_results["pml_ratio"]
+        pd_results = calculate_pd_damage(s_inputs)
+        pd_damage_amount = pd_results["damage_amount"]
+        pd_ratio = pd_results["pml_ratio"]
         gross_bi_days, net_bi_days_raw = calculate_bi_downtime(pd_ratio, s_inputs)
         net_bi_days_final = max(0, net_bi_days_raw - s_inputs.bi_gun_muafiyeti)
         bi_damage_amount = (s_inputs.yillik_brut_kar / 365.0) * net_bi_days_final if s_inputs.yillik_brut_kar > 0 else 0
@@ -303,8 +372,12 @@ def main():
         results = []
         for koas in koas_opts:
             for muaf in muaf_opts:
-                prim_pd = calculate_premium(s_inputs.si_pd, s_inputs.yapi_turu, s_inputs.rg, koas, muaf); prim_bi = calculate_premium(s_inputs.yillik_brut_kar, s_inputs.yapi_turu, s_inputs.rg, koas, muaf, is_bi=True); toplam_prim = prim_pd + prim_bi
-                pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf); total_payout = pd_claim["net_tazminat"] + bi_damage_amount; retained_risk = (pd_damage_amount + bi_damage_amount) - total_payout
+                prim_pd = calculate_premium(s_inputs.si_pd, s_inputs.yapi_turu, s_inputs.rg, koas, muaf)
+                prim_bi = calculate_premium(s_inputs.yillik_brut_kar, s_inputs.yapi_turu, s_inputs.rg, koas, muaf, is_bi=True)
+                toplam_prim = prim_pd + prim_bi
+                pd_claim = calculate_net_claim(s_inputs.si_pd, pd_damage_amount, koas, muaf)
+                total_payout = pd_claim["net_tazminat"] + bi_damage_amount
+                retained_risk = (pd_damage_amount + bi_damage_amount) - total_payout
                 verimlilik_skoru = (total_payout / toplam_prim if toplam_prim > 0 else 0) - (retained_risk / s_inputs.si_pd if s_inputs.si_pd > 0 else 0)
                 results.append({"Poliçe Yapısı": f"{koas} / {muaf}%", "Yıllık Toplam Prim": toplam_prim, "Toplam Net Tazminat": total_payout, "Sigortalıda Kalan Risk": retained_risk, "Verimlilik Skoru": verimlilik_skoru})
         df = pd.DataFrame(results).sort_values("Verimlilik Skoru", ascending=False).reset_index(drop=True)
