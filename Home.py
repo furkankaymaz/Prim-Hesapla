@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
-# AFAD Deprem Tehlike Parametreleri Sorgulama Aracı
-# ==========================================================
+# AFAD Deprem Tehlike Parametreleri Sorgulama Aracı (v1.1 - Hata Düzeltildi)
+# ===========================================================================
 # Bu basit Streamlit uygulaması, girilen enlem ve boylam
 # bilgisi için AFAD'ın resmi web servisinden (tdth.afad.gov.tr)
 # DD-2 deprem yer hareketi düzeyi (475 yıl tekrarlanma periyodu)
@@ -11,8 +11,8 @@ import streamlit as st
 import requests
 import pandas as pd
 
-# AFAD'ın web servis adresi
-AFAD_API_URL = "httpsd.afad.gov.tr/esSorgu/post른Sorgu"
+# AFAD'ın web servis adresi (DÜZELTİLDİ)
+AFAD_API_URL = "https://tdth.afad.gov.tr/api/post/sorgu"
 
 @st.cache_data(show_spinner="AFAD sunucusundan veriler alınıyor...")
 def get_afad_hazard_data(lat: float, lon: float) -> dict:
@@ -37,14 +37,15 @@ def get_afad_hazard_data(lat: float, lon: float) -> dict:
 
     try:
         # SSL sertifika doğrulaması (verify=False) bazı sistemlerde gerekebilir.
-        # Genellikle kamu sitelerinin sertifikalarıyla ilgili sorunları aşmak için kullanılır.
-        response = requests.post(AFAD_API_URL, headers=headers, json=payload, timeout=15, verify=False)
+        response = requests.post(AFAD_API_URL, headers=headers, json=payload, timeout=15)
         
         # İstek başarılıysa ve dönen veri varsa
-        if response.status_code == 200 and response.text:
+        response.raise_for_status() # Hatalı durum kodları için (4xx, 5xx) bir istisna fırlatır
+        if response.text:
             return response.json()
         else:
-            raise ConnectionError(f"AFAD sunucusundan yanıt alınamadı. Durum Kodu: {response.status_code}")
+            raise ValueError("AFAD sunucusundan boş yanıt alındı.")
+            
     except requests.exceptions.RequestException as e:
         raise ConnectionError(f"AFAD sunucusuna bağlanırken bir ağ hatası oluştu: {e}")
 
@@ -87,12 +88,12 @@ def main():
                 "Değer (g)": [data.get("ss475"), data.get("s1475")]
             }
             df = pd.DataFrame(spectral_data)
-            st.table(df)
+            st.table(df.style.format({"Değer (g)": "{:.4f}"}))
 
             with st.expander("Tüm Ham Veriyi Görüntüle"):
                 st.json(data)
 
-        except (ConnectionError, Exception) as e:
+        except (ConnectionError, ValueError, Exception) as e:
             st.error(f"Hata: {e}")
 
 if __name__ == "__main__":
