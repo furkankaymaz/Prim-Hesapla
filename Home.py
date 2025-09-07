@@ -4,7 +4,7 @@
 # =====================================================================================
 # Bu araç, AFAD'ın JavaScript-yoğun web sitesiyle tam uyumlu çalışmak üzere,
 # arka planda bir web tarayıcısını otomatize eden Selenium kütüphanesini kullanır.
-# Bu yöntem, en kararlı ve güvenilir çözümdür.
+# Streamlit Cloud'da çalışması için requirements.txt dosyası gereklidir.
 
 import streamlit as st
 import pandas as pd
