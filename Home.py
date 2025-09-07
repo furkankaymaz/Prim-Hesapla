@@ -1,82 +1,91 @@
 # -*- coding: utf-8 -*-
 #
-# AFAD Deprem Tehlike Parametreleri Sorgulama Aracı (v2.0 - Nihai ve Çalışan Sürüm)
+# AFAD Deprem Tehlike Parametreleri Sorgulama Aracı (v3.0 - Selenium ile Kararlı Çözüm)
 # =====================================================================================
-# Bu araç, AFAD'ın insan kullanıcılara hizmet veren web sitesiyle (main.xhtml)
-# bir tarayıcı gibi iletişim kurarak, altyapıdaki değişikliklerden etkilenmeyen,
-# kararlı bir yöntemle deprem tehlike verilerini çeker.
+# Bu araç, AFAD'ın JavaScript-yoğun web sitesiyle tam uyumlu çalışmak üzere,
+# arka planda bir web tarayıcısını otomatize eden Selenium kütüphanesini kullanır.
+# Bu yöntem, en kararlı ve güvenilir çözümdür.
 
 import streamlit as st
-import requests
 import pandas as pd
 import json
+import time
 
-# AFAD'ın ana web uygulaması adresi. API'lar değişse de bu adres kararlıdır.
+# Gerekli Selenium kütüphaneleri
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+
+# AFAD'ın ana web uygulaması adresi
 AFAD_TARGET_URL = "https://tdth.afad.gov.tr/TDTH/main.xhtml"
 
-@st.cache_data(show_spinner="AFAD sunucusuna bağlanılıyor ve veriler işleniyor...")
-def get_afad_hazard_data_stable(lat: float, lon: float) -> dict:
+@st.cache_data(show_spinner="Web tarayıcısı başlatılıyor ve AFAD sitesine bağlanılıyor...")
+def get_afad_hazard_data_selenium(lat: float, lon: float) -> dict:
     """
-    AFAD web uygulamasıyla tam bir tarayıcı (browser) gibi etkileşime girerek
-    kararlı bir şekilde deprem tehlike verilerini alır.
+    Selenium kullanarak AFAD web sitesinden kararlı bir şekilde deprem tehlike verilerini alır.
     """
+    # Chrome'u arka planda (headless) çalıştırmak için ayarlar
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+    # Chrome sürücüsünü otomatik olarak indirip kurar
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    
     try:
-        # 1. Adım: Ana sayfaya bağlanarak gerekli oturum bilgilerini (session cookies) al.
-        session = requests.Session()
-        initial_response = session.get(AFAD_TARGET_URL, timeout=20)
-        initial_response.raise_for_status()
+        # 1. Sayfaya git
+        driver.get(AFAD_TARGET_URL)
 
-        # JSF (JavaServer Faces) tarafından kullanılan ViewState değerini HTML'den çek.
-        # Bu, sunucunun bizim kim olduğumuzu anlaması için gereklidir.
-        if 'name="javax.faces.ViewState"' not in initial_response.text:
-            raise ValueError("AFAD sayfasından gerekli ViewState anahtarı alınamadı. Site yapısı değişmiş olabilir.")
+        # 2. Koordinat giriş kutularının yüklenmesini bekle ve değerleri gir
+        wait = WebDriverWait(driver, 20) # 20 saniye bekleme süresi
+        lat_input = wait.until(EC.presence_of_element_located((By.ID, "enlem")))
+        lon_input = driver.find_element(By.ID, "boylam")
         
-        view_state = initial_response.text.split('name="javax.faces.ViewState"')[1].split('value="')[1].split('"')[0]
+        lat_input.clear()
+        lat_input.send_keys(str(lat))
+        
+        lon_input.clear()
+        lon_input.send_keys(str(lon))
 
-        # 2. Adım: Koordinatları ve oturum bilgilerini içeren POST isteğini gönder.
-        # Bu, haritaya tıklama eylemini simüle eder.
-        form_data = {
-            'javax.faces.partial.ajax': 'true',
-            'javax.faces.source': 'j_idt16',
-            'javax.faces.partial.execute': '@all',
-            'javax.faces.partial.render': 'koordinat',
-            'j_idt16': 'j_idt16',
-            'j_idt16_coords': f'{lat},{lon}',
-            'javax.faces.ViewState': view_state,
+        # 3. Sorgula butonuna tıkla
+        query_button = driver.find_element(By.ID, "j_idt30")
+        query_button.click()
+
+        # 4. Sonuçların yüklenmesini bekle (PGA değeri görünür olana kadar)
+        result_pga_element = wait.until(EC.visibility_of_element_located((By.ID, "pga475")))
+        
+        # 5. Sonuçları elementlerden oku
+        pga_value = float(driver.find_element(By.ID, "pga475").text)
+        pgv_value = float(driver.find_element(By.ID, "pgv475").text)
+        ss_value = float(driver.find_element(By.ID, "ss475").text)
+        s1_value = float(driver.find_element(By.ID, "s1475").text)
+
+        # 6. Sonuçları standart formatımızda bir sözlük olarak döndür
+        return {
+            "enlem": lat,
+            "boylam": lon,
+            "pga475": pga_value,
+            "pgv475": pgv_value,
+            "ss475": ss_value,
+            "s1475": s1_value,
         }
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Faces-Request': 'partial/ajax',
-        }
 
-        data_response = session.post(AFAD_TARGET_URL, data=form_data, headers=headers, timeout=20)
-        data_response.raise_for_status()
-        
-        # 3. Adım: Dönen XML cevabından JSON verisini ayıkla.
-        # Sunucu, sayfanın sadece güncellenecek kısmını XML formatında gönderir.
-        if "<![CDATA[" in data_response.text:
-            # CDATA bloğunun içindeki JSON verisini bulup ayıklıyoruz
-            json_string = data_response.text.split('{"data":')[1].split('}]]>')[0]
-            full_json_string = '{"data":' + json_string + '}'
-            parsed_json = json.loads(full_json_string)
-            return parsed_json['data']
-        else:
-            raise ValueError("AFAD'dan gelen yanıtta beklenen veri formatı bulunamadı.")
-
-    except requests.exceptions.HTTPError as e:
-        raise ConnectionError(f"AFAD sunucusuna ulaşıldı ancak bir HTTP hatası alındı (örn: 404, 503): {e}")
-    except requests.exceptions.RequestException as e:
-        raise ConnectionError(f"AFAD sunucusuna bağlanırken bir ağ hatası oluştu: {e}")
-    except (ValueError, IndexError, KeyError) as e:
-        raise ValueError(f"AFAD'dan gelen yanıt işlenirken bir hata oluştu. Sunucu yanıt formatı değişmiş olabilir: {e}")
-
+    finally:
+        # Her durumda tarayıcıyı kapat
+        driver.quit()
 
 def main():
     st.set_page_config(page_title="AFAD PGA Sorgulama", layout="centered")
     st.image("https://www.afad.gov.tr/kurumlar/afad.gov.tr/2-YUKLENEN/2logo/afad-logo.png", width=150)
-    st.title("📍 AFAD Deprem Tehlike Parametreleri Sorgulama (v2.0)")
-    st.markdown("AFAD'ın **güncel ve kararlı** web uygulamasıyla entegre çalışarak bilimsel parametreleri sorgular.")
+    st.title("📍 AFAD Deprem Tehlike Sorgulama (v3.0 - Kararlı Sürüm)")
+    st.markdown("Bu araç, arka planda bir web tarayıcısı kullanarak AFAD'dan **güvenilir** şekilde veri çeker.")
 
     lat_default = 40.9906 # Kadıköy
     lon_default = 29.0271
@@ -89,10 +98,9 @@ def main():
 
     if st.button("Deprem Tehlikesini Sorgula", type="primary"):
         try:
-            data = get_afad_hazard_data_stable(lat, lon)
+            data = get_afad_hazard_data_selenium(lat, lon)
             
             st.success(f"**{data.get('enlem')}°, {data.get('boylam')}°** konumu için veriler başarıyla alındı.")
-
             pga_value = data.get("pga475")
             
             col_pga, col_pgv = st.columns(2)
@@ -103,7 +111,6 @@ def main():
 
             st.markdown("---")
             st.subheader("Spektral İvme Değerleri (DD-2 / 475 Yıl)")
-
             spectral_data = {
                 "Parametre": ["Ss (Kısa Periyot)", "S1 (1 Saniye Periyot)"],
                 "Değer (g)": [data.get("ss475"), data.get("s1475")]
@@ -114,8 +121,9 @@ def main():
             with st.expander("Tüm Ham Veriyi Görüntüle"):
                 st.json(data)
 
-        except (ConnectionError, ValueError, Exception) as e:
+        except Exception as e:
             st.error(f"Hata: {e}")
+            st.info("Olası Çözüm: İnternet bağlantınızı kontrol edin. Hata devam ederse, AFAD sitesi geçici olarak hizmet dışı olabilir.")
 
 if __name__ == "__main__":
     main()
